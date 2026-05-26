@@ -84,7 +84,7 @@ export default [
     command: ["chat", "group", "members", "list"],
     args(a) {
       return [
-        ["--id", a.chat_id],
+        ["--group", a.chat_id],
         ["--cursor", a.cursor],
       ];
     },
