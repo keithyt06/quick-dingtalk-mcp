@@ -1,12 +1,14 @@
 # quick-dingtalk-mcp
 
+> **v0.2 升级提示（v0.1 用户必读）**：项目布局已改为 monorepo（`packages/local/server.mjs`）。v0.1 单文件 `server.mjs` 已不在仓库根。MCP host 配置里把 `args` 改成 `<repo>/packages/local/server.mjs`，或改用 `npx -y quick-dingtalk-mcp`。详见 [packages/local/docs/setup.md](./packages/local/docs/setup.md#v01--v02-迁移v01-用户必读)。
+
 > **Talk to DingTalk as yourself, from any MCP host.**
 > A lightweight MCP server that wraps the official DingTalk CLI (`dws`), letting Amazon Q Developer / Claude Desktop / Cursor / Continue send and read DingTalk messages with **your real user identity** — not as a bot.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
-[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18-brightgreen)](https://nodejs.org)
+[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D20-brightgreen)](https://nodejs.org)
 [![MCP](https://img.shields.io/badge/MCP-compatible-blue)](https://modelcontextprotocol.io)
-[![Status](https://img.shields.io/badge/status-v0.1-orange)](#status)
+[![Status](https://img.shields.io/badge/status-v0.2--pre-orange)](#status)
 
 [中文](#中文) · [English](#english)
 
@@ -23,14 +25,19 @@ This project takes the opposite path: it wraps DingTalk's official CLI [`dws`](h
 ### Architecture
 
 ```
-You speak              Your MCP host                    quick-dingtalk-mcp                  dws CLI                  DingTalk
-  │  natural               │  MCP stdio                     │                                 │                        │
-  │  language              │  (JSON-RPC 2.0)                │  child_process                  │  HTTPS + OAuth         │
-  ▼                        ▼                                ▼                                 ▼                        ▼
-"在 X 群发消息" ──→ Q Desktop / Claude / Cursor ──→ node server.mjs ──exec──→ dws chat message send ──→ mcp-gw.dingtalk.com
+                   Local (v0.2 ready)                       Remote (v0.2 Plan 2 — coming)
+MCP host ──stdio──→ packages/local/server.mjs              Quick Desktop ──HTTPS──→ AWS AgentCore + Lambda
+                       │                                              │
+                       │ uses → packages/shared/{catalog,             │ uses same packages/shared
+                       │   dispatcher, errors, search}                │
+                       ▼                                              ▼
+                    dws CLI ──HTTPS──→ DingTalk             container running dws (per-user DWS_CONFIG_DIR)
+                                                                       │
+                                                                       ▼
+                                                              DingTalk
 ```
 
-Under the hood, `dws` is itself a thin client to DingTalk's MCP gateway (`mcp-gw.dingtalk.com`) — which means DingTalk's server side is *already* MCP-native. This project just exposes that capability over local stdio for any MCP host.
+Under the hood, `dws` is itself a thin client to DingTalk's MCP gateway (`mcp-gw.dingtalk.com`) — which means DingTalk's server side is *already* MCP-native. This project exposes that capability over local stdio (Local) and over a managed Bedrock AgentCore runtime with per-user OAuth (Remote, Plan 2).
 
 ### Quick start
 
@@ -49,21 +56,18 @@ dws auth login --device
 # 4. Wire it into your MCP host (see Configuration below)
 ```
 
-Full step-by-step guide → [SETUP.md](./SETUP.md)
-Sanity-check the user-identity claim → [VERIFICATION.md](./VERIFICATION.md)
+Full step-by-step guide → [packages/local/docs/setup.md](./packages/local/docs/setup.md)
+Sanity-check the user-identity claim → [packages/local/docs/verification.md](./packages/local/docs/verification.md)
 
-### Tools (6)
+### Tools (38)
 
-| Tool | What it does | Underlying `dws` command |
-|---|---|---|
-| `dingtalk_send_message` | Send a message to a group / 1:1 chat as yourself | `dws chat message send` |
-| `dingtalk_get_messages` | Pull recent messages from a chat | `dws chat message list` |
-| `dingtalk_search_messages` | Keyword-search across your chats | `dws chat message search` |
-| `dingtalk_list_chats` | Find a group by name | `dws chat search` |
-| `dingtalk_search_user` | Find a person by name | `dws contact user search` |
-| `dingtalk_get_thread` | Read replies under a topic thread | `dws chat message list-topic-replies` |
+| Bucket | Count | Examples | Notes |
+|---|---|---|---|
+| **Tier1** | 30 | `dingtalk_chat_message_send`, `_list`, `_search`, `_recall`, `_reply`, `_list_mentions`, `_forward`; `dingtalk_contact_user_search`, `_get_self`, `_get`, `_dept_search`; `dingtalk_chat_search`, `_chat_group_create`, `_chat_group_members_list`; `dingtalk_calendar_event_create`, `_list`, `_update`, `_participant_list`; `dingtalk_doc_create`, `_read`, `_search`, `dingtalk_drive_list`; `dingtalk_todo_task_list`, `_create`, `_done`; `dingtalk_ding_message_send`, `_recall` | hand-picked, exposed by name |
+| **v0.1 aliases** | 6 | `dingtalk_send_message` → `dingtalk_chat_message_send` etc. | `[deprecated, use <new>]` in description; will drop in v0.3 |
+| **Discovery** | 2 | `dingtalk_discover` (keyword search the full catalog) + `dingtalk_invoke` (run anything from catalog) | covers all 261 dws v1.0.32 commands |
 
-DingTalk requires every message to have a **title** (unlike Feishu). The wrapper enforces this in the input schema.
+DingTalk requires every message to have a **title** (unlike Feishu). The catalog enforces this in `inputSchema.required`.
 
 ### Configuration
 
@@ -77,7 +81,7 @@ DingTalk requires every message to have a **title** (unlike Feishu). The wrapper
 | ID | `quick-dingtalk-mcp` |
 | Name | `quick-dingtalk-mcp` |
 | Command | `node` (or absolute path from `which node`) |
-| Arguments | `<absolute path>/quick-dingtalk-mcp/server.mjs` |
+| Arguments | `<absolute path>/quick-dingtalk-mcp/packages/local/server.mjs` |
 
 #### Claude Desktop
 
@@ -88,7 +92,7 @@ DingTalk requires every message to have a **title** (unlike Feishu). The wrapper
   "mcpServers": {
     "quick-dingtalk-mcp": {
       "command": "node",
-      "args": ["/absolute/path/to/quick-dingtalk-mcp/server.mjs"]
+      "args": ["/absolute/path/to/quick-dingtalk-mcp/packages/local/server.mjs"]
     }
   }
 }
@@ -113,18 +117,16 @@ If you want a personal-assistant feel where the LLM *is you*, use this. If you w
 
 ### Status
 
-**v0.1 — works, but young.** Implemented and dry-run-tested:
+**v0.2-pre — under active migration to monorepo + remote.**
 
-- ✅ All 6 tools verified to construct correct `dws` invocations (see `scripts/smoke.sh`)
-- ✅ User-identity sender verified in real DingTalk app (see [VERIFICATION.md](./VERIFICATION.md))
-- ⚠️ No support yet for: image/file attachments, interactive cards, group creation
-- ⚠️ DingTalk-only commands (`@-mentions`, unread inbox, DING urgent messages) listed as "next"
+- ✅ **Local v0.2 (this release)**: monorepo refactor done; 38 tools (30 tier1 + 6 aliases + discover/invoke); shared catalog covers all 261 dws v1.0.32 commands; smoke test passes; v0.1 user-identity verification still holds.
+- 🚧 **Remote v0.2 (next, Plan 2)**: AWS Bedrock AgentCore + per-user OAuth, multi-user shared deployment. PoC for dws token injection in progress (see `docs/superpowers/notes/2026-05-27-poc-token-injection.md`).
+- 📅 **Production hardening (Plan 3)**: observability dashboard + 10 alarms + WAF + comprehensive docs.
 
 Roadmap, in priority order:
-1. `dingtalk_send_ding` — DingTalk's flagship "urgent" notification
-2. `dingtalk_list_mentions` — fetch messages where you were @-ed
-3. `dingtalk_list_unread` — your unread inbox
-4. Schema-driven mode — auto-expose all 159 `dws` commands as MCP tools
+1. Plan 2: Remote stack (container + 3 Lambdas + 3 CDK stacks + scripts)
+2. Plan 3: Production hardening
+3. v0.3: drop v0.1 aliases; image / file / interactive card support
 
 ### Acknowledgments
 
@@ -165,26 +167,23 @@ npm install
 dws auth login --device
 
 # 4. 跑冒烟测试（不调真实 API）
-bash scripts/smoke.sh
+npm run smoke
 
-# 5. 在 MCP Host 里配置 → 见 SETUP.md
+# 5. 在 MCP Host 里配置 → 见 packages/local/docs/setup.md
 ```
 
-完整配置流程 → [SETUP.md](./SETUP.md)
-"用户态在群里到底显示啥" 5 分钟人工验证 → [VERIFICATION.md](./VERIFICATION.md)
+完整配置流程 → [packages/local/docs/setup.md](./packages/local/docs/setup.md)
+"用户态在群里到底显示啥" 5 分钟人工验证 → [packages/local/docs/verification.md](./packages/local/docs/verification.md)
 
-### 暴露的 6 个工具
+### 暴露的 38 个工具
 
-| 工具 | 功能 | 底层命令 |
-|---|---|---|
-| `dingtalk_send_message` | 以本人身份发消息到群/私聊 | `dws chat message send` |
-| `dingtalk_get_messages` | 拉取消息历史 | `dws chat message list` |
-| `dingtalk_search_messages` | 跨会话关键词搜消息 | `dws chat message search` |
-| `dingtalk_list_chats` | 按名搜索群聊 | `dws chat search` |
-| `dingtalk_search_user` | 按姓名搜人 | `dws contact user search` |
-| `dingtalk_get_thread` | 查看话题（thread）回复列表 | `dws chat message list-topic-replies` |
+| 类别 | 数量 | 示例 | 备注 |
+|---|---|---|---|
+| **Tier1** | 30 | `dingtalk_chat_message_send` / `_list` / `_search` / `_recall`、`dingtalk_contact_user_search`、`dingtalk_calendar_event_create`、`dingtalk_doc_create`、`dingtalk_todo_task_create`、`dingtalk_ding_message_send` | 手挑常用,按工具名直接暴露 |
+| **v0.1 alias** | 6 | `dingtalk_send_message` → `dingtalk_chat_message_send` 等 | 描述带 `[deprecated, use ...]` 前缀,v0.3 删除 |
+| **兜底** | 2 | `dingtalk_discover`(关键词搜全部 catalog) + `dingtalk_invoke`(执行任意 catalog 命令) | 覆盖 dws v1.0.32 全部 261 个命令 |
 
-> 钉钉强制每条消息有 **title**（飞书没这要求）—— 这是本 wrapper 与飞书侧 lark-cli-mcp 最显著的差异，已在 inputSchema 里设为必填。
+> 钉钉强制每条消息有 **title**（飞书没这要求）—— catalog 已在 inputSchema 里把 `title` 设为必填。
 
 ### 致谢
 
