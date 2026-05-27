@@ -31,6 +31,36 @@ const AGENTCODE = process.env.DINGTALK_DWS_AGENTCODE || "quick-dingtalk-mcp";
 
 const aliasMap = tier1.aliases; // alias name → real tool name
 
+// v0.1 → v0.2 args remap. v0.2 catalog commands sometimes require a different
+// arg name or extra required args than the v0.1 wrapper exposed. Each entry
+// transforms the v0.1 args object into something the v0.2 dispatcher accepts.
+// Returns a NEW object; original args is not mutated.
+const ALIAS_ARGS_TRANSFORM = {
+  // v0.1 used `query` for chat search; v0.2 catalog's chat.search requires `keyword`.
+  dingtalk_list_chats: (args) => {
+    const out = { ...args };
+    if (out.query != null && out.keyword == null) {
+      out.keyword = out.query;
+      delete out.query;
+    }
+    return out;
+  },
+  // v0.2 catalog's chat.message.search requires `keyword` + `start` + `end`.
+  // v0.1 only passed `keyword`. Fill `start`/`end` with a default 24h window
+  // ending now — preserves the "search recent messages" semantic of v0.1.
+  dingtalk_search_messages: (args) => {
+    const out = { ...args };
+    if (!out.start || !out.end) {
+      const now = new Date();
+      const start = new Date(now.getTime() - 24 * 3600 * 1000);
+      const fmt = (d) => d.toISOString().replace("T", " ").replace(/\.\d+Z$/, "");
+      out.start = out.start || fmt(start);
+      out.end = out.end || fmt(now);
+    }
+    return out;
+  },
+};
+
 // Pre-build canonical-key index so findCommandByToolName is O(1) instead of
 // walking every catalog entry on every call.
 const TOOL_NAME_TO_KEY = new Map();
@@ -134,7 +164,10 @@ async function dispatch(toolName, callArgs) {
   if (!found) {
     return errorResult(new InputError(`未知工具: ${toolName}`));
   }
-  const cliArgs = toCliArgs(found.cmd, callArgs);
+  // Apply v0.1 → v0.2 args transform if this is a known alias call.
+  const transform = ALIAS_ARGS_TRANSFORM[toolName];
+  const transformedArgs = transform ? transform(callArgs) : callArgs;
+  const cliArgs = toCliArgs(found.cmd, transformedArgs);
   return await runDws(cliArgs);
 }
 
