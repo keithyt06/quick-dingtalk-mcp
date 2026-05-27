@@ -2,7 +2,6 @@
  * dws CLI 执行器
  *
  * 统一处理：
- * - Safety Guard 安全检查（@all 限制、频率限制、时间窗口）
  * - 命令拼装（command + args + 全局 flags）
  * - 超时控制
  * - 权限错误检测与提示
@@ -10,7 +9,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { InputError } from "./helpers.mjs";
-import { checkSafety, shouldDryRun, recordWrite, buildConfirmSummary } from "./safety-guard.mjs";
 
 const execFileAsync = promisify(execFile);
 
@@ -25,23 +23,6 @@ const MAX_BUFFER = 5 * 1024 * 1024;
  * @returns MCP CallToolResult
  */
 export async function executeTool(tool, inputArgs) {
-  // 0. Safety Guard 安全检查
-  const safety = checkSafety(tool, inputArgs);
-  if (!safety.allowed) {
-    return {
-      content: [{ type: "text", text: safety.reason }],
-      isError: true,
-    };
-  }
-
-  // 0.1 强制 dry-run 模式：返回预览摘要，不实际执行
-  if (shouldDryRun(tool)) {
-    const summary = buildConfirmSummary(tool, inputArgs);
-    return {
-      content: [{ type: "text", text: `[DRY-RUN 预览模式]\n\n${summary}\n\n如需实际执行，请设置 SAFETY_DRY_RUN=false` }],
-    };
-  }
-
   // 1. 可选自定义校验
   if (tool.validate) {
     tool.validate(inputArgs);
@@ -73,15 +54,7 @@ export async function executeTool(tool, inputArgs) {
   }
 
   const out = stdout.trim() || stderr.trim() || "(empty response)";
-
-  // 5. 记录写操作（用于频率限制）
-  if (tool.annotations && tool.annotations.readOnlyHint !== true) {
-    recordWrite();
-  }
-
-  // 6. 附加安全警告（如果有）
-  const text = safety.warning ? `${out}\n\n${safety.warning}` : out;
-  return { content: [{ type: "text", text }] };
+  return { content: [{ type: "text", text: out }] };
 }
 
 /**

@@ -64,22 +64,12 @@ export async function loadSchemaTools() {
 }
 
 /**
- * 危险操作关键词：schema 自动发现时跳过这些 tools
- */
-const DANGEROUS_PATTERNS = /^(delete|remove|dismiss|recall|revoke|drop|kick|mute)/i;
-
-/**
  * 将单个 schema tool 转换为标准 MCP tool 对象
  */
 function convertSchemaTool(productId, schemaTool) {
   const { name, description, parameters, commandPath, readOnly, destructive, idempotent } = schemaTool;
 
   if (!name || !commandPath) return null;
-
-  // 安全过滤：跳过危险操作
-  if (destructive || DANGEROUS_PATTERNS.test(name)) {
-    return null;
-  }
 
   // 生成 MCP tool name: dingtalk_<product>_<name>
   const mcpName = `dingtalk_${productId}_${name}`.replace(/[.\-]/g, "_");

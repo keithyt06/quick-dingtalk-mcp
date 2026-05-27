@@ -3,7 +3,6 @@
  * 对应 dws wiki space 子命令树
  */
 import { READ_ONLY, WRITE_ADDITIVE, WRITE_IDEMPOTENT } from "../../framework/annotations.mjs";
-import { InputError } from "../../framework/helpers.mjs";
 
 export default [
   // ─── 创建知识库 ────────────────────────────────────
@@ -93,18 +92,13 @@ export default [
       type: "object",
       properties: {
         id: { type: "string", description: "知识库 workspaceId（必填）" },
-        action: { type: "string", description: "操作类型：list/add" },
-        users: { type: "string", description: "用户 userId 列表，逗号分隔（add 时需要）" },
+        action: { type: "string", description: "操作类型：list/add/remove" },
+        users: { type: "string", description: "用户 userId 列表，逗号分隔（add/remove 时需要）" },
         role: { type: "string", description: "成员角色（add 时可选）" },
       },
       required: ["id"],
     },
     command: ["wiki", "member"],
-    validate(a) {
-      if (a.action && a.action.toLowerCase() === "remove") {
-        throw new InputError("安全限制：不允许移除知识库成员（remove 操作已禁用）");
-      }
-    },
     args(a) {
       return [
         ["--id", a.id],

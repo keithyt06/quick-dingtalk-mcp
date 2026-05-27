@@ -2,7 +2,7 @@
  * AI 表格 - Base 管理 tools
  * 对应 dws aitable base 子命令树
  */
-import { READ_ONLY, WRITE_ADDITIVE } from "../../framework/annotations.mjs";
+import { READ_ONLY, WRITE_ADDITIVE, WRITE_DESTRUCTIVE } from "../../framework/annotations.mjs";
 
 export default [
   // ─── 创建 Base ─────────────────────────────────────
@@ -65,4 +65,22 @@ export default [
     },
   },
 
+  // ─── 删除 Base ─────────────────────────────────────
+  {
+    name: "dingtalk_aitable_base_delete",
+    description:
+      "删除 AI 表格 Base（不可恢复）。底层调用 dws aitable base delete。",
+    annotations: WRITE_DESTRUCTIVE,
+    inputSchema: {
+      type: "object",
+      properties: {
+        base_id: { type: "string", description: "Base ID（必填）" },
+      },
+      required: ["base_id"],
+    },
+    command: ["aitable", "base", "delete"],
+    args(a) {
+      return [["--base-id", a.base_id]];
+    },
+  },
 ];

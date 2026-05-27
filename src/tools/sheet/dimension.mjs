@@ -3,7 +3,7 @@
  * 对应 dws sheet add-dimension/insert-dimension/delete-dimension/
  *   move-dimension/update-dimension/merge-cells/unmerge-cells 子命令
  */
-import { WRITE_ADDITIVE, WRITE_IDEMPOTENT } from "../../framework/annotations.mjs";
+import { WRITE_ADDITIVE, WRITE_IDEMPOTENT, WRITE_DESTRUCTIVE } from "../../framework/annotations.mjs";
 
 export default [
   {
@@ -60,6 +60,34 @@ export default [
     },
   },
 
+
+  {
+    name: "dingtalk_sheet_delete_dimension",
+    description:
+      "删除指定位置起的若干行或列。底层调用 dws sheet delete-dimension。",
+    annotations: WRITE_DESTRUCTIVE,
+    inputSchema: {
+      type: "object",
+      properties: {
+        node: { type: "string", description: "表格文档 nodeId（必填）" },
+        sheet_id: { type: "string", description: "工作表 ID（必填）" },
+        dimension: { type: "string", description: "维度：ROW 或 COLUMN（必填）" },
+        index: { type: "string", description: "起始位置索引，0-based（必填）" },
+        count: { type: "string", description: "删除数量（必填）" },
+      },
+      required: ["node", "sheet_id", "dimension", "index", "count"],
+    },
+    command: ["sheet", "delete-dimension"],
+    args(a) {
+      return [
+        ["--node", a.node],
+        ["--sheet-id", a.sheet_id],
+        ["--dimension", a.dimension],
+        ["--index", a.index],
+        ["--count", a.count],
+      ];
+    },
+  },
 
   {
     name: "dingtalk_sheet_move_dimension",

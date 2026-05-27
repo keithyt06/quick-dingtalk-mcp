@@ -2,7 +2,7 @@
  * AI 表格 - 记录管理 tools
  * 对应 dws aitable record 子命令树
  */
-import { READ_ONLY, WRITE_ADDITIVE, WRITE_IDEMPOTENT } from "../../framework/annotations.mjs";
+import { READ_ONLY, WRITE_ADDITIVE, WRITE_IDEMPOTENT, WRITE_DESTRUCTIVE } from "../../framework/annotations.mjs";
 
 export default [
   // ─── 创建记录 ──────────────────────────────────────
@@ -90,4 +90,28 @@ export default [
     },
   },
 
+  // ─── 删除记录 ──────────────────────────────────────
+  {
+    name: "dingtalk_aitable_record_delete",
+    description:
+      "删除数据表中的记录。底层调用 dws aitable record delete。",
+    annotations: WRITE_DESTRUCTIVE,
+    inputSchema: {
+      type: "object",
+      properties: {
+        base_id: { type: "string", description: "Base ID（必填）" },
+        table_id: { type: "string", description: "数据表 ID（必填）" },
+        record_id: { type: "string", description: "记录 ID（必填）" },
+      },
+      required: ["base_id", "table_id", "record_id"],
+    },
+    command: ["aitable", "record", "delete"],
+    args(a) {
+      return [
+        ["--base-id", a.base_id],
+        ["--table-id", a.table_id],
+        ["--record-id", a.record_id],
+      ];
+    },
+  },
 ];

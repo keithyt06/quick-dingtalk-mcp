@@ -2,7 +2,7 @@
  * AI 表格 - 图表管理 tools
  * 对应 dws aitable chart 子命令树
  */
-import { READ_ONLY, WRITE_ADDITIVE } from "../../framework/annotations.mjs";
+import { READ_ONLY, WRITE_ADDITIVE, WRITE_DESTRUCTIVE } from "../../framework/annotations.mjs";
 
 export default [
   {
@@ -75,4 +75,26 @@ export default [
     },
   },
 
+  {
+    name: "dingtalk_aitable_chart_delete",
+    description: "删除图表。底层调用 dws aitable chart delete。",
+    annotations: WRITE_DESTRUCTIVE,
+    inputSchema: {
+      type: "object",
+      properties: {
+        base_id: { type: "string", description: "Base ID（必填）" },
+        dashboard_id: { type: "string", description: "仪表盘 ID（必填）" },
+        chart_id: { type: "string", description: "图表 ID（必填）" },
+      },
+      required: ["base_id", "dashboard_id", "chart_id"],
+    },
+    command: ["aitable", "chart", "delete"],
+    args(a) {
+      return [
+        ["--base-id", a.base_id],
+        ["--dashboard-id", a.dashboard_id],
+        ["--chart-id", a.chart_id],
+      ];
+    },
+  },
 ];

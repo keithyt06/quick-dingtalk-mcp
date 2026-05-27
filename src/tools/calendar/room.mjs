@@ -2,7 +2,7 @@
  * 会议室管理 tools
  * 对应 dws calendar room 子命令树
  */
-import { READ_ONLY, WRITE_ADDITIVE } from "../../framework/annotations.mjs";
+import { READ_ONLY, WRITE_ADDITIVE, WRITE_DESTRUCTIVE } from "../../framework/annotations.mjs";
 
 export default [
   // ─── 列出会议室分组 ─────────────────────────────────
@@ -67,4 +67,25 @@ export default [
     },
   },
 
+  // ─── 从日程移除会议室 ───────────────────────────────
+  {
+    name: "dingtalk_delete_room",
+    description: "从日程移除会议室。底层调用 dws calendar room delete。",
+    annotations: WRITE_DESTRUCTIVE,
+    inputSchema: {
+      type: "object",
+      properties: {
+        event: { type: "string", description: "日程 eventId（必填）" },
+        rooms: { type: "string", description: "会议室 ID 列表，逗号分隔（必填）" },
+      },
+      required: ["event", "rooms"],
+    },
+    command: ["calendar", "room", "delete"],
+    args(a) {
+      return [
+        ["--event", a.event],
+        ["--rooms", a.rooms],
+      ];
+    },
+  },
 ];

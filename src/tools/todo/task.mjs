@@ -2,7 +2,7 @@
  * 待办任务 tools
  * 对应 dws todo task 子命令树
  */
-import { READ_ONLY, WRITE_ADDITIVE, WRITE_IDEMPOTENT } from "../../framework/annotations.mjs";
+import { READ_ONLY, WRITE_ADDITIVE, WRITE_DESTRUCTIVE, WRITE_IDEMPOTENT } from "../../framework/annotations.mjs";
 
 export default [
   // ─── 创建待办 ──────────────────────────────────────
@@ -103,6 +103,24 @@ export default [
         ["--due", a.due],
         ["--done", a.done],
       ];
+    },
+  },
+
+  // ─── 删除待办 ──────────────────────────────────────
+  {
+    name: "dingtalk_delete_todo",
+    description: "删除待办任务（不可恢复）。底层调用 dws todo task delete。",
+    annotations: WRITE_DESTRUCTIVE,
+    inputSchema: {
+      type: "object",
+      properties: {
+        task_id: { type: "string", description: "待办任务 ID（必填）" },
+      },
+      required: ["task_id"],
+    },
+    command: ["todo", "task", "delete"],
+    args(a) {
+      return [["--task-id", a.task_id]];
     },
   },
 

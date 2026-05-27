@@ -2,7 +2,7 @@
  * AI 表格 - 数据表管理 tools
  * 对应 dws aitable table 子命令树
  */
-import { READ_ONLY, WRITE_ADDITIVE } from "../../framework/annotations.mjs";
+import { READ_ONLY, WRITE_ADDITIVE, WRITE_DESTRUCTIVE } from "../../framework/annotations.mjs";
 
 export default [
   // ─── 创建数据表 ────────────────────────────────────
@@ -70,4 +70,26 @@ export default [
     },
   },
 
+  // ─── 删除数据表 ────────────────────────────────────
+  {
+    name: "dingtalk_aitable_table_delete",
+    description:
+      "删除数据表（不可恢复）。底层调用 dws aitable table delete。",
+    annotations: WRITE_DESTRUCTIVE,
+    inputSchema: {
+      type: "object",
+      properties: {
+        base_id: { type: "string", description: "Base ID（必填）" },
+        table_id: { type: "string", description: "数据表 ID（必填）" },
+      },
+      required: ["base_id", "table_id"],
+    },
+    command: ["aitable", "table", "delete"],
+    args(a) {
+      return [
+        ["--base-id", a.base_id],
+        ["--table-id", a.table_id],
+      ];
+    },
+  },
 ];

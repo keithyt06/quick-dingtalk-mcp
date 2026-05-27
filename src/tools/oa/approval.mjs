@@ -2,7 +2,7 @@
  * OA 审批 tools
  * 对应 dws oa approval 子命令树
  */
-import { READ_ONLY } from "../../framework/annotations.mjs";
+import { READ_ONLY, WRITE_ADDITIVE, WRITE_DESTRUCTIVE } from "../../framework/annotations.mjs";
 
 export default [
   // ─── 待审批列表 ────────────────────────────────────
@@ -90,6 +90,75 @@ export default [
       required: ["instance_id"],
     },
     command: ["oa", "approval", "detail"],
+    args(a) {
+      return [["--instance-id", a.instance_id]];
+    },
+  },
+
+  // ─── 同意审批 ──────────────────────────────────────
+  {
+    name: "dingtalk_oa_approve",
+    description:
+      "同意审批任务。底层调用 dws oa approval approve。",
+    annotations: WRITE_ADDITIVE,
+    inputSchema: {
+      type: "object",
+      properties: {
+        instance_id: { type: "string", description: "审批实例 ID（必填）" },
+        task_id: { type: "string", description: "审批任务 ID（必填）" },
+        remark: { type: "string", description: "审批意见" },
+      },
+      required: ["instance_id", "task_id"],
+    },
+    command: ["oa", "approval", "approve"],
+    args(a) {
+      return [
+        ["--instance-id", a.instance_id],
+        ["--task-id", a.task_id],
+        ["--remark", a.remark],
+      ];
+    },
+  },
+
+  // ─── 拒绝审批 ──────────────────────────────────────
+  {
+    name: "dingtalk_oa_reject",
+    description:
+      "拒绝审批任务。底层调用 dws oa approval reject。",
+    annotations: WRITE_ADDITIVE,
+    inputSchema: {
+      type: "object",
+      properties: {
+        instance_id: { type: "string", description: "审批实例 ID（必填）" },
+        task_id: { type: "string", description: "审批任务 ID（必填）" },
+        remark: { type: "string", description: "拒绝原因" },
+      },
+      required: ["instance_id", "task_id"],
+    },
+    command: ["oa", "approval", "reject"],
+    args(a) {
+      return [
+        ["--instance-id", a.instance_id],
+        ["--task-id", a.task_id],
+        ["--remark", a.remark],
+      ];
+    },
+  },
+
+  // ─── 撤销审批 ──────────────────────────────────────
+  {
+    name: "dingtalk_oa_revoke",
+    description:
+      "撤销审批实例（仅发起人可操作）。底层调用 dws oa approval revoke。",
+    annotations: WRITE_DESTRUCTIVE,
+    inputSchema: {
+      type: "object",
+      properties: {
+        instance_id: { type: "string", description: "审批实例 ID（必填）" },
+      },
+      required: ["instance_id"],
+    },
+    command: ["oa", "approval", "revoke"],
     args(a) {
       return [["--instance-id", a.instance_id]];
     },

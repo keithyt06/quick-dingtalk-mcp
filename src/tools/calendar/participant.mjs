@@ -2,7 +2,7 @@
  * 日程参与者管理 tools
  * 对应 dws calendar participant 子命令树
  */
-import { READ_ONLY, WRITE_ADDITIVE } from "../../framework/annotations.mjs";
+import { READ_ONLY, WRITE_ADDITIVE, WRITE_DESTRUCTIVE } from "../../framework/annotations.mjs";
 
 export default [
   // ─── 添加参与者 ─────────────────────────────────────
@@ -25,6 +25,28 @@ export default [
         ["--event", a.event],
         ["--users", a.users],
         ["--optional", a.optional],
+      ];
+    },
+  },
+
+  // ─── 移除参与者 ─────────────────────────────────────
+  {
+    name: "dingtalk_remove_participant",
+    description: "从日程移除参与者。底层调用 dws calendar participant delete。",
+    annotations: WRITE_DESTRUCTIVE,
+    inputSchema: {
+      type: "object",
+      properties: {
+        event: { type: "string", description: "日程 eventId（必填）" },
+        users: { type: "string", description: "要移除的 userId 列表，逗号分隔（必填）" },
+      },
+      required: ["event", "users"],
+    },
+    command: ["calendar", "participant", "delete"],
+    args(a) {
+      return [
+        ["--event", a.event],
+        ["--users", a.users],
       ];
     },
   },

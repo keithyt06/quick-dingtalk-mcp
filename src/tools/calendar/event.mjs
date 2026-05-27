@@ -2,7 +2,7 @@
  * 日历日程 tools
  * 对应 dws calendar event / busy 子命令树
  */
-import { READ_ONLY, WRITE_ADDITIVE, WRITE_IDEMPOTENT } from "../../framework/annotations.mjs";
+import { READ_ONLY, WRITE_ADDITIVE, WRITE_DESTRUCTIVE, WRITE_IDEMPOTENT } from "../../framework/annotations.mjs";
 
 export default [
   // ─── 创建日程 ──────────────────────────────────────
@@ -71,6 +71,24 @@ export default [
       required: ["id"],
     },
     command: ["calendar", "event", "get"],
+    args(a) {
+      return [["--id", a.id]];
+    },
+  },
+
+  // ─── 删除日程 ──────────────────────────────────────
+  {
+    name: "dingtalk_delete_event",
+    description: "删除日程（不可恢复）。底层调用 dws calendar event delete。",
+    annotations: WRITE_DESTRUCTIVE,
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "日程 eventId（必填）" },
+      },
+      required: ["id"],
+    },
+    command: ["calendar", "event", "delete"],
     args(a) {
       return [["--id", a.id]];
     },

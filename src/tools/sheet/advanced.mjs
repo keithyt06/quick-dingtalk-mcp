@@ -3,7 +3,6 @@
  * 对应 dws sheet filter-view/write-image/range 子命令
  */
 import { READ_ONLY, WRITE_ADDITIVE, WRITE_IDEMPOTENT } from "../../framework/annotations.mjs";
-import { InputError } from "../../framework/helpers.mjs";
 
 export default [
   {
@@ -16,19 +15,14 @@ export default [
       properties: {
         node: { type: "string", description: "表格文档 nodeId（必填）" },
         sheet_id: { type: "string", description: "工作表 ID（必填）" },
-        action: { type: "string", description: "操作：create/list/get" },
-        filter_view_id: { type: "string", description: "筛选视图 ID（get 时需要）" },
+        action: { type: "string", description: "操作：create/list/get/delete" },
+        filter_view_id: { type: "string", description: "筛选视图 ID（get/delete 时需要）" },
         name: { type: "string", description: "筛选视图名称（create 时需要）" },
         range: { type: "string", description: "筛选范围（create 时需要）" },
       },
       required: ["node", "sheet_id"],
     },
     command: ["sheet", "filter-view"],
-    validate(a) {
-      if (a.action && a.action.toLowerCase() === "delete") {
-        throw new InputError("安全限制：不允许删除筛选视图（delete 操作已禁用）");
-      }
-    },
     args(a) {
       return [
         ["--node", a.node],

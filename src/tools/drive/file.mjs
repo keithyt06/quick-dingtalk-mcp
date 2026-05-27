@@ -2,7 +2,7 @@
  * 云盘 tools
  * 对应 dws drive 子命令树（文件 / 上传 / 下载 / 文件夹）
  */
-import { READ_ONLY, WRITE_ADDITIVE, WRITE_IDEMPOTENT } from "../../framework/annotations.mjs";
+import { READ_ONLY, WRITE_ADDITIVE, WRITE_DESTRUCTIVE, WRITE_IDEMPOTENT } from "../../framework/annotations.mjs";
 
 export default [
   // ─── 列出文件 ──────────────────────────────────────
@@ -191,4 +191,25 @@ export default [
     },
   },
 
+  // ─── 删除文件 ──────────────────────────────────────
+  {
+    name: "dingtalk_drive_delete",
+    description: "删除云盘文件或文件夹（不可恢复）。底层调用 dws drive delete。",
+    annotations: WRITE_DESTRUCTIVE,
+    inputSchema: {
+      type: "object",
+      properties: {
+        space_id: { type: "string", description: "空间 ID（必填）" },
+        file_id: { type: "string", description: "文件 ID（必填）" },
+      },
+      required: ["space_id", "file_id"],
+    },
+    command: ["drive", "delete"],
+    args(a) {
+      return [
+        ["--space-id", a.space_id],
+        ["--file-id", a.file_id],
+      ];
+    },
+  },
 ];

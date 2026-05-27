@@ -2,7 +2,7 @@
  * IM 消息操作 tools
  * 对应 dws chat message 子命令树
  */
-import { READ_ONLY, WRITE_ADDITIVE, WRITE_IDEMPOTENT } from "../../framework/annotations.mjs";
+import { READ_ONLY, WRITE_ADDITIVE, WRITE_DESTRUCTIVE, WRITE_IDEMPOTENT } from "../../framework/annotations.mjs";
 import { InputError } from "../../framework/helpers.mjs";
 
 export default [
@@ -231,6 +231,28 @@ export default [
         ["--src-conversation-id", a.src_conversation_id],
         ["--msg-id", a.msg_id],
         ["--dest-conversation-id", a.dest_conversation_id],
+      ];
+    },
+  },
+
+  // ─── 撤回消息 ──────────────────────────────────────
+  {
+    name: "dingtalk_recall_message",
+    description: "撤回单条消息。底层调用 dws chat message recall。",
+    annotations: WRITE_DESTRUCTIVE,
+    inputSchema: {
+      type: "object",
+      properties: {
+        chat_id: { type: "string", description: "群/会话 openConversationId（必填）" },
+        msg_id: { type: "string", description: "消息 openMessageId（必填）" },
+      },
+      required: ["chat_id", "msg_id"],
+    },
+    command: ["chat", "message", "recall"],
+    args(a) {
+      return [
+        ["--group", a.chat_id],
+        ["--msg-id", a.msg_id],
       ];
     },
   },

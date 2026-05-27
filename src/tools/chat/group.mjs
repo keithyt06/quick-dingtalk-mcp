@@ -2,7 +2,7 @@
  * 群管理 + 会话管理 tools
  * 对应 dws chat group / chat search-common / chat list-top-conversations 子命令树
  */
-import { READ_ONLY, WRITE_ADDITIVE, WRITE_IDEMPOTENT } from "../../framework/annotations.mjs";
+import { READ_ONLY, WRITE_ADDITIVE, WRITE_DESTRUCTIVE, WRITE_IDEMPOTENT } from "../../framework/annotations.mjs";
 
 export default [
   // ─── 创建群 ────────────────────────────────────────
@@ -24,6 +24,24 @@ export default [
         ["--name", a.name],
         ["--users", a.users],
       ];
+    },
+  },
+
+  // ─── 解散群 ────────────────────────────────────────
+  {
+    name: "dingtalk_dismiss_group",
+    description: "解散群聊（不可恢复，仅群主可用）。底层调用 dws chat group dismiss。",
+    annotations: WRITE_DESTRUCTIVE,
+    inputSchema: {
+      type: "object",
+      properties: {
+        chat_id: { type: "string", description: "群聊 openConversationId（必填）" },
+      },
+      required: ["chat_id"],
+    },
+    command: ["chat", "group", "dismiss"],
+    args(a) {
+      return [["--group", a.chat_id]];
     },
   },
 
@@ -109,6 +127,52 @@ export default [
     command: ["chat", "group", "invite-url"],
     args(a) {
       return [["--group", a.chat_id]];
+    },
+  },
+
+  // ─── 群全员禁言 ────────────────────────────────────
+  {
+    name: "dingtalk_mute_group",
+    description: "群全员禁言（开启/关闭）。底层调用 dws chat group-mute。",
+    annotations: WRITE_IDEMPOTENT,
+    inputSchema: {
+      type: "object",
+      properties: {
+        chat_id: { type: "string", description: "群聊 openConversationId（必填）" },
+        status: { type: "string", description: "禁言状态：true=开启禁言, false=关闭禁言（必填）" },
+      },
+      required: ["chat_id", "status"],
+    },
+    command: ["chat", "group-mute"],
+    args(a) {
+      return [
+        ["--group", a.chat_id],
+        ["--status", a.status],
+      ];
+    },
+  },
+
+  // ─── 设置管理员 ────────────────────────────────────
+  {
+    name: "dingtalk_set_admin",
+    description: "设置/取消群管理员。底层调用 dws chat group set-admin。",
+    annotations: WRITE_IDEMPOTENT,
+    inputSchema: {
+      type: "object",
+      properties: {
+        chat_id: { type: "string", description: "群聊 openConversationId（必填）" },
+        user_id: { type: "string", description: "目标用户 userId（必填）" },
+        role: { type: "string", description: "角色：admin=设为管理员, member=取消管理员" },
+      },
+      required: ["chat_id", "user_id"],
+    },
+    command: ["chat", "group", "set-admin"],
+    args(a) {
+      return [
+        ["--group", a.chat_id],
+        ["--user", a.user_id],
+        ["--role", a.role],
+      ];
     },
   },
 

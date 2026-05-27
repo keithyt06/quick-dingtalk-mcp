@@ -3,7 +3,6 @@
  * 对应 dws doc 子命令树（搜索 / 浏览 / 读写 / 上传下载 / 文件 / 文件夹 / 块级编辑 / 评论）
  */
 import { READ_ONLY, WRITE_ADDITIVE, WRITE_IDEMPOTENT } from "../../framework/annotations.mjs";
-import { InputError } from "../../framework/helpers.mjs";
 
 export default [
   // ─── 搜索文档 ──────────────────────────────────────
@@ -277,19 +276,14 @@ export default [
       type: "object",
       properties: {
         node: { type: "string", description: "文档 nodeId（必填）" },
-        action: { type: "string", description: "操作类型：read/insert/update" },
-        block_id: { type: "string", description: "块 ID（更新时需要）" },
+        action: { type: "string", description: "操作类型：read/insert/update/delete" },
+        block_id: { type: "string", description: "块 ID（更新/删除时需要）" },
         content: { type: "string", description: "块内容 JSON（插入/更新时需要）" },
         index: { type: "string", description: "插入位置索引（insert 时可选）" },
       },
       required: ["node"],
     },
     command: ["doc", "block"],
-    validate(a) {
-      if (a.action && a.action.toLowerCase() === "delete") {
-        throw new InputError("安全限制：不允许删除文档块（delete 操作已禁用）");
-      }
-    },
     args(a) {
       return [
         ["--node", a.node],
@@ -335,18 +329,13 @@ export default [
     inputSchema: {
       type: "object",
       properties: {
-        action: { type: "string", description: "操作类型：list/move" },
+        action: { type: "string", description: "操作类型：list/delete/move" },
         workspace_id: { type: "string", description: "知识库/空间 ID" },
         node: { type: "string", description: "文件 nodeId" },
         target_parent_node_id: { type: "string", description: "目标父节点 ID（move 时需要）" },
       },
     },
     command: ["doc", "file"],
-    validate(a) {
-      if (a.action && a.action.toLowerCase() === "delete") {
-        throw new InputError("安全限制：不允许删除文件（delete 操作已禁用）");
-      }
-    },
     args(a) {
       return [
         ["--action", a.action],
@@ -365,24 +354,21 @@ export default [
     inputSchema: {
       type: "object",
       properties: {
-        action: { type: "string", description: "操作类型：create/list" },
+        action: { type: "string", description: "操作类型：create/list/delete" },
         workspace_id: { type: "string", description: "知识库/空间 ID" },
         parent_node_id: { type: "string", description: "父节点 ID" },
         name: { type: "string", description: "文件夹名称（create 时需要）" },
+        node: { type: "string", description: "文件夹 nodeId（delete 时需要）" },
       },
     },
     command: ["doc", "folder"],
-    validate(a) {
-      if (a.action && a.action.toLowerCase() === "delete") {
-        throw new InputError("安全限制：不允许删除文件夹（delete 操作已禁用）");
-      }
-    },
     args(a) {
       return [
         ["--action", a.action],
         ["--workspace-id", a.workspace_id],
         ["--parent-node-id", a.parent_node_id],
         ["--name", a.name],
+        ["--node", a.node],
       ];
     },
   },

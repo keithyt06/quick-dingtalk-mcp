@@ -2,7 +2,7 @@
  * AI 表格 - 仪表盘管理 tools
  * 对应 dws aitable dashboard 子命令树
  */
-import { READ_ONLY, WRITE_ADDITIVE } from "../../framework/annotations.mjs";
+import { READ_ONLY, WRITE_ADDITIVE, WRITE_DESTRUCTIVE } from "../../framework/annotations.mjs";
 
 export default [
   // ─── 创建仪表盘 ────────────────────────────────────
@@ -70,4 +70,26 @@ export default [
     },
   },
 
+  // ─── 删除仪表盘 ────────────────────────────────────
+  {
+    name: "dingtalk_aitable_dashboard_delete",
+    description:
+      "删除仪表盘。底层调用 dws aitable dashboard delete。",
+    annotations: WRITE_DESTRUCTIVE,
+    inputSchema: {
+      type: "object",
+      properties: {
+        base_id: { type: "string", description: "Base ID（必填）" },
+        dashboard_id: { type: "string", description: "仪表盘 ID（必填）" },
+      },
+      required: ["base_id", "dashboard_id"],
+    },
+    command: ["aitable", "dashboard", "delete"],
+    args(a) {
+      return [
+        ["--base-id", a.base_id],
+        ["--dashboard-id", a.dashboard_id],
+      ];
+    },
+  },
 ];
