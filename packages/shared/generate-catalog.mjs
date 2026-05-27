@@ -25,28 +25,77 @@ async function getDwsVersion() {
   return m[1];
 }
 
-// Cobra --help structure (observed):
+// dws v1.0.32 --help structure (observed):
+//
+// At the root:
+//   Discovered MCP Services:
+//     aiapp        ...
+//     ...
 //   Usage:
-//     dws [command]
+//     dws <service> [command] [flags]
+//   Utility Commands:
+//     api          ...
+//     auth         ...
+//
+// At nested levels (standard cobra):
 //   Available Commands:
-//     chat        Manage chat ...
-//     contact     ...
-//   Flags:
-//     -h, --help   help for dws
-function parseSubcommands(helpText) {
+//     send        ...
+//     list        ...
+//
+// We harvest from any of these section headers. The root's "Utility Commands"
+// section contains things like auth/cache/config/doctor/plugin which are NOT
+// DingTalk product capabilities and must be excluded from the catalog.
+const SUBCOMMAND_SECTION = /^(Available Commands|Discovered MCP Services|Utility Commands):/i;
+const STOP_SECTION = /^(Usage|Aliases|Examples|Flags|Global Flags|Use ".*" for more):/i;
+
+// Top-level utility commands we never want in catalog (per spec — only the
+// dingtalk product commands should be exposed as MCP tools).
+const ROOT_UTILITY_BLOCKLIST = new Set([
+  "api", "auth", "cache", "completion", "config", "doctor", "help",
+  "plugin", "recovery", "schema", "skill", "version", "upgrade",
+]);
+
+function parseSubcommands(helpText, { isRoot = false } = {}) {
   const lines = helpText.split("\n");
-  const start = lines.findIndex((l) => /^Available Commands:/i.test(l));
-  if (start < 0) return [];
   const out = [];
-  for (let i = start + 1; i < lines.length; i++) {
+  let i = 0;
+  while (i < lines.length) {
     const line = lines[i];
-    if (!line.trim()) break;
-    if (/^[A-Z]/.test(line)) break; // hit next section
-    const m = line.match(/^\s+(\S+)\s+(.*)$/);
-    if (!m) continue;
-    const name = m[1];
-    if (name === "help" || name === "completion") continue;
-    out.push({ name, description: m[2].trim() });
+    if (SUBCOMMAND_SECTION.test(line)) {
+      const isUtility = /^Utility Commands:/i.test(line);
+      i++;
+      let sawData = false;
+      while (i < lines.length) {
+        const sub = lines[i];
+        if (!sub.trim()) {
+          // Leading blank lines after a section header are common; allow.
+          // Once we've seen real data, a blank line ends the block.
+          if (sawData) {
+            i++;
+            break;
+          }
+          i++;
+          continue;
+        }
+        if (STOP_SECTION.test(sub) || SUBCOMMAND_SECTION.test(sub)) break;
+        const m = sub.match(/^\s+(\S+)\s+(.*)$/);
+        if (m) {
+          sawData = true;
+          const name = m[1];
+          // Always skip help/completion (cobra meta).
+          if (name !== "help" && name !== "completion") {
+            // At the root, skip Utility Commands entirely — they aren't
+            // DingTalk product capabilities.
+            if (!(isRoot && (isUtility || ROOT_UTILITY_BLOCKLIST.has(name)))) {
+              out.push({ name, description: m[2].trim() });
+            }
+          }
+        }
+        i++;
+      }
+      continue;
+    }
+    i++;
   }
   return out;
 }
@@ -74,7 +123,9 @@ function parseFlags(helpText) {
       short: short || null,
       type: type || "bool",
       description: desc.trim(),
-      required: /\brequired\b/i.test(desc),
+      // dws v1.0.32 marks required fields with "(必填" or "必填" in Chinese
+      // descriptions; some flags also use the English "required" word.
+      required: /\brequired\b|必填/i.test(desc),
     });
   }
   return flags;
@@ -121,7 +172,7 @@ function extractDescription(helpText) {
 
 async function walk(path) {
   const help = await dws(...path, "--help");
-  const subs = parseSubcommands(help);
+  const subs = parseSubcommands(help, { isRoot: false });
   if (subs.length === 0) {
     return [
       {
@@ -147,7 +198,7 @@ async function main() {
   const version = await getDwsVersion();
   console.error(`Generating catalog for dws ${version}...`);
   const top = await dws("--help");
-  const groups = parseSubcommands(top);
+  const groups = parseSubcommands(top, { isRoot: true });
   const commands = {};
   for (const g of groups) {
     console.error(`  ${g.name} ...`);
