@@ -1,6 +1,6 @@
 {
   "name": "quick-dingtalk-mcp",
-  "version": "0.2.0-pre",
+  "version": "0.2.0",
   "description": "Lightweight MCP server that wraps the official DingTalk Workspace CLI (dws), exposing user-identity DingTalk messaging to any MCP host.",
   "type": "module",
   "main": "./server.mjs",

@@ -134,7 +134,7 @@ function buildToolList() {
 const TOOLS = buildToolList();
 
 const server = new Server(
-  { name: "quick-dingtalk-mcp", version: "0.2.0-pre" },
+  { name: "quick-dingtalk-mcp", version: "0.2.0" },
   { capabilities: { tools: {} } }
 );
 

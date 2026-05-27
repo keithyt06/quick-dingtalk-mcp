@@ -8,7 +8,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D20-brightgreen)](https://nodejs.org)
 [![MCP](https://img.shields.io/badge/MCP-compatible-blue)](https://modelcontextprotocol.io)
-[![Status](https://img.shields.io/badge/status-v0.2--pre-orange)](#status)
+[![Status](https://img.shields.io/badge/status-v0.2.0-blue)](#status)
 
 [中文](#中文) · [English](#english)
 
