@@ -12,7 +12,7 @@
 
 v0.1 是个 275 行的 stdio MCP server，把 6 个 `dws` 子命令包成 MCP 工具，给 Local MCP host（Q Desktop / Claude Desktop / Cursor）使用。本次升级把项目同时支持两种发行形态：
 
-- **Local（保留并增强）**：单机自用，stdio MCP，依赖用户机器上已登录的 dws；工具集从 6 个扩到 30 + 兜底全部 159 个。
+- **Local（保留并增强）**：单机自用，stdio MCP，依赖用户机器上已登录的 dws；工具集从 6 个扩到 30 + 兜底全部 ~159 个（确切数由 Plan 1 Task 5 跑 `dws --help` 实测后定）。
 - **Remote（新增）**：多用户共享托管，参考 lark-mcp-on-agentcore 部署到 AWS Bedrock AgentCore，多用户 OAuth 隔离、token 自动刷新、可观测告警齐全。
 
 两种形态共用同一份工具 catalog 与 dispatcher 代码。
@@ -221,7 +221,11 @@ v0.1 用户已经在 prompt 里写了 `dingtalk_send_message` 等 6 个名字。
 
 ### 4.4 错误重写
 
-dws 设了 `DINGTALK_DWS_AGENTCODE` 环境变量后，命中权限不足时 stderr 输出结构化 JSON + exit code 4。dispatcher 捕获 `exit=4`：
+dws 设了 `DINGTALK_DWS_AGENTCODE` 环境变量后，命中权限不足时 stderr 输出结构化 JSON + exit code 4。
+
+> **⚠️ 未实测**：下面这份 JSON 形态是**设计假设**，需在 **Plan 1 Task 3 PoC** 阶段实测一次（主动触发权限不足），拿到实际 exit code、stderr 文本、字段名后回补到本节，errors.mjs 的 fixture 与单测断言以**实测结果**为准。scope 字符串风格（`Contact.User.Read` 等）同样是占位、非钉钉官方命名。
+
+dispatcher 捕获 `exit=4`：
 
 ```js
 {
@@ -315,6 +319,8 @@ v0.1 → v0.2 迁移
 | **WAFStack**（可选） | `infra/lib/waf-stack.ts` | us-east-1 CloudFront-scope WAFv2 + 速率限制规则。不开就不部署 |
 
 部署顺序：OAuthStack → RuntimeStack（要 OAuthStack 输出的 SM ARN）→（可选）WAFStack。
+
+> **关于 alarm-webhook 在 OAuthStack 里**：alarm-webhook 与 OAuth 语义无关，但跟 Dashboard / Alarms / SNS 一起放在 OAuthStack 是为了让"主部署 stack"自包含整套可观测；webhook URL 部署时未填就不实例化这个 Lambda（也不影响 SNS topic 创建）。后续若 Plan 3 把 Dashboard/Alarms 拆出 ObservabilityStack，alarm-webhook 一并迁过去。
 
 ---
 
