@@ -1,0 +1,56 @@
+{
+  "_dwsCliVersion": "0.0.0-placeholder",
+  "_scopeMapVersion": "1",
+  "_generatedAt": "1970-01-01T00:00:00.000Z",
+  "_note": "PLACEHOLDER catalog. Run `npm run build:catalog` on a machine with dws installed and authenticated to overwrite this file with the real ~159 commands. Plan 1 Task 5 — must be regenerated before Task 4 (tier1.json catalog consistency check) and Task 13 (server.mjs tools/list build).",
+  "commands": {
+    "chat.message.send": {
+      "path": ["chat", "message", "send"],
+      "description": "Send a chat message (placeholder)",
+      "flags": [
+        { "name": "group", "type": "string", "description": "group conversation id" },
+        { "name": "user", "type": "string", "description": "single-chat user id" },
+        { "name": "title", "type": "string", "description": "message title", "required": true },
+        { "name": "text", "type": "string", "description": "message body", "required": true },
+        { "name": "at-all", "type": "bool", "description": "@everyone in group" }
+      ]
+    },
+    "chat.message.list": {
+      "path": ["chat", "message", "list"],
+      "description": "List chat messages (placeholder)",
+      "flags": [
+        { "name": "group", "type": "string" },
+        { "name": "limit", "type": "int" }
+      ]
+    },
+    "chat.message.search": {
+      "path": ["chat", "message", "search"],
+      "description": "Search messages (placeholder)",
+      "flags": [
+        { "name": "keyword", "type": "string", "required": true }
+      ]
+    },
+    "chat.search": {
+      "path": ["chat", "search"],
+      "description": "Search chats (placeholder)",
+      "flags": [
+        { "name": "query", "type": "string", "required": true }
+      ]
+    },
+    "contact.user.search": {
+      "path": ["contact", "user", "search"],
+      "description": "Search users (placeholder)",
+      "flags": [
+        { "name": "query", "type": "string", "required": true }
+      ]
+    },
+    "chat.message.list-topic-replies": {
+      "path": ["chat", "message", "list-topic-replies"],
+      "description": "List topic replies (placeholder)",
+      "flags": [
+        { "name": "group", "type": "string", "required": true },
+        { "name": "topic-id", "type": "string", "required": true }
+      ]
+    }
+  }
+}
