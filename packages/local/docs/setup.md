@@ -1,5 +1,23 @@
 # SETUP — 从零到能用的完整配置指南
 
+## v0.1 → v0.2 迁移（v0.1 用户必读）
+
+v0.2 把项目改成 monorepo，`server.mjs` 从仓库根挪到 `packages/local/server.mjs`。MCP host 配置里的 `args` 路径必须更新：
+
+| | 老 | 新 |
+|---|---|---|
+| Args | `/path/to/quick-dingtalk-mcp/packages/local/server.mjs` | `/path/to/quick-dingtalk-mcp/packages/local/server.mjs` |
+
+或者直接用 npx（无需 clone）：
+
+```json
+{ "command": "npx", "args": ["-y", "quick-dingtalk-mcp"] }
+```
+
+旧 6 个工具名（`dingtalk_send_message` 等）作为 alias 保留至 v0.3，工具描述会标 `[deprecated, use ...]`。新 prompt 请直接用 `dingtalk_chat_message_send` 等 catalog 名。
+
+---
+
 本文档手把手带你把 `quick-dingtalk-mcp` 装好、登录钉钉、接到 MCP Host（Amazon Quick Desktop / Claude Desktop / Cursor），最终能用自然语言操作钉钉消息。
 
 预计耗时：**约 15 分钟**（含等管理员审批 CLI 访问的可选步骤）。
@@ -13,7 +31,7 @@
 
 ```
 你说的话                              你的 MCP Host                          quick-dingtalk-mcp                       dws CLI                       钉钉
-"在 X 群发消息"  ──→  Quick / Claude / Cursor  ──MCP stdio──→  node server.mjs  ──exec──→  dws chat ...  ──HTTPS──→  mcp-gw.dingtalk.com
+"在 X 群发消息"  ──→  Quick / Claude / Cursor  ──MCP stdio──→  node packages/local/server.mjs  ──exec──→  dws chat ...  ──HTTPS──→  mcp-gw.dingtalk.com
 ```
 
 `dws` 是钉钉官方的 CLI（[`DingTalk-Real-AI/dingtalk-workspace-cli`](https://github.com/DingTalk-Real-AI/dingtalk-workspace-cli)，1.8k stars，Apache-2.0），它内部已经把所有钉钉 OpenAPI 包成 MCP 工具发给钉钉的 MCP 网关。本项目（`server.mjs`）只是个轻量适配层，把 dws 暴露给本地 stdio MCP Host。
@@ -123,21 +141,12 @@ dws auth status -f json
 ## Step 4：冒烟测试（不调真实 API）
 
 ```bash
-bash scripts/smoke.sh
+npm run smoke
 ```
 
-期望输出：6 个工具的 dry-run 结果，每个都打印一段 JSON，里面有 `"canonical_path"` 字段，分别是：
+期望输出：7 段 dry-run 结果（覆盖 v0.1 的 6 个语义 + 1 个 single-chat 变体），每段打印一段 JSON 含 `"canonical_path"` 字段。只要每段 canonical_path 都能正常显示（即使 chat search 返回空结果或 not_authenticated 都没关系），就说明 wrapper 构造的 dws 命令是正确的。
 
-| 工具 | 期望的 canonical_path |
-|---|---|
-| 群发消息 | `chat.send_message_as_user` |
-| 私聊发消息 | `chat.send_direct_message_as_user` |
-| 拉消息 | `group-chat.list_conversation_message_v2` |
-| 搜消息 | `group-chat.search_messages_by_keyword` |
-| 搜人 | `contact.search_contact_by_key_word` |
-| 查线程 | `group-chat.list_topic_replies` |
-
-只要 6 个工具的 canonical_path 都能正常显示（即使 chat search 返回空结果或 not_authenticated 都没关系），就说明 wrapper 构造的 dws 命令是正确的。
+> v0.2 实际暴露 **38 个工具**（30 tier1 + 6 v0.1 alias + `dingtalk_discover` / `dingtalk_invoke`），smoke 只针对 v0.1 alias 做最小冒烟。完整列表见 `tools/list` 输出或 README。
 
 ---
 
@@ -175,8 +184,8 @@ dws chat message send --user <YOUR_USERID> --title "user-mode test" --text "veri
 cd ~/Downloads/quick-dingtalk-mcp     # 替换成你实际路径
 
 # 拿 server.mjs 绝对路径
-echo "$(pwd)/server.mjs"
-# 例如：/Users/keithyu/Downloads/quick-dingtalk-mcp/server.mjs
+echo "$(pwd)/packages/local/server.mjs"
+# 例如：/Users/keithyu/Downloads/quick-dingtalk-mcp/packages/local/server.mjs
 
 # 拿 node 绝对路径（Quick Desktop 启动的子进程 PATH 不一定全，用绝对路径最稳）
 which node
@@ -203,7 +212,7 @@ which node
 
 保存后应该看到：
 ```
-quick-dingtalk-mcp · 6 tools · Connected ✅
+quick-dingtalk-mcp · 38 tools · Connected ✅
 ```
 
 如果显示 0 tools 或 Disconnected：见下面[故障排查](#故障排查)。
@@ -223,7 +232,7 @@ quick-dingtalk-mcp · 6 tools · Connected ✅
   "mcpServers": {
     "quick-dingtalk-mcp": {
       "command": "/usr/local/bin/node",
-      "args": ["/Users/keithyu/Downloads/quick-dingtalk-mcp/server.mjs"]
+      "args": ["/Users/keithyu/Downloads/quick-dingtalk-mcp/packages/local/server.mjs"]
     }
   }
 }
@@ -242,7 +251,7 @@ quick-dingtalk-mcp · 6 tools · Connected ✅
 {
   "quick-dingtalk-mcp": {
     "command": "node",
-    "args": ["/Users/keithyu/Downloads/quick-dingtalk-mcp/server.mjs"]
+    "args": ["/Users/keithyu/Downloads/quick-dingtalk-mcp/packages/local/server.mjs"]
   }
 }
 ```
@@ -306,7 +315,7 @@ npm install
 **第一步：在终端手动跑 server.mjs：**
 ```bash
 cd ~/Downloads/quick-dingtalk-mcp
-node server.mjs
+node packages/local/server.mjs
 ```
 
 **正确的状态**：没输出，光标停住（在等 MCP 客户端从 stdin 发请求）。Ctrl+C 退出即可。

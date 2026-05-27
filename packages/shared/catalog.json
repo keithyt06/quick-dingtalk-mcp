@@ -1,0 +1,7872 @@
+{
+  "_dwsCliVersion": "1.0.32",
+  "_scopeMapVersion": "1",
+  "_generatedAt": "2026-05-27T07:30:50.692Z",
+  "commands": {
+    "aiapp.create": {
+      "path": [
+        "aiapp",
+        "create"
+      ],
+      "description": "创建 AI 应用",
+      "flags": [
+        {
+          "name": "attachments",
+          "short": null,
+          "type": "string",
+          "description": "附件对象数组 JSON (可选)",
+          "required": false
+        },
+        {
+          "name": "prompt",
+          "short": null,
+          "type": "string",
+          "description": "创建 AI 应用的 prompt (必填)",
+          "required": true
+        },
+        {
+          "name": "skills",
+          "short": null,
+          "type": "string",
+          "description": "技能 ID 列表，逗号分隔 (可选)",
+          "required": false
+        }
+      ]
+    },
+    "aiapp.modify": {
+      "path": [
+        "aiapp",
+        "modify"
+      ],
+      "description": "修改 AI 应用",
+      "flags": [
+        {
+          "name": "prompt",
+          "short": null,
+          "type": "string",
+          "description": "新的 prompt (必填)",
+          "required": true
+        },
+        {
+          "name": "skills",
+          "short": null,
+          "type": "string",
+          "description": "技能 ID 列表，逗号分隔 (可选)",
+          "required": false
+        },
+        {
+          "name": "thread-id",
+          "short": null,
+          "type": "string",
+          "description": "threadId (必填)",
+          "required": true
+        }
+      ]
+    },
+    "aiapp.query": {
+      "path": [
+        "aiapp",
+        "query"
+      ],
+      "description": "查询 AI 应用",
+      "flags": [
+        {
+          "name": "task-id",
+          "short": null,
+          "type": "string",
+          "description": "AI 应用任务 ID (必填)",
+          "required": true
+        }
+      ]
+    },
+    "aiapp.search": {
+      "path": [
+        "aiapp",
+        "search"
+      ],
+      "description": "Please use: dws aiapp",
+      "flags": []
+    },
+    "aisearch.person": {
+      "path": [
+        "aisearch",
+        "person"
+      ],
+      "description": "搜索企业人员（支持按姓名/部门/职位/职责/上下级/手机号/工号筛选）",
+      "flags": [
+        {
+          "name": "dimension",
+          "short": "d",
+          "type": "string",
+          "description": "查询维度: all/name/department/position/duty/supervisor/subordinate/phone/jobNumber，多个用逗号分隔 (默认 all)",
+          "required": false
+        },
+        {
+          "name": "keyword",
+          "short": "w",
+          "type": "string",
+          "description": "搜索关键词 (必填，如人名、技能关键词等)",
+          "required": true
+        }
+      ]
+    },
+    "aitable.attachment.upload": {
+      "path": [
+        "aitable",
+        "attachment",
+        "upload"
+      ],
+      "description": "准备附件上传 — 3 步流程的第 1 步. 本命令只调用 prepare_attachment_upload, 返回 OSS 上传地址 uploadUrl 和 fileToken, 不实际上传文件二进制. 拿到响应后你还需要: 2. HTTP PUT 文件二进制 → uploadUrl 3. 把 fileToken 填到 record 的 attachment 字段, 格式 [{\"fileToken\":\"ft_xxx\"}] 推荐 AI Agent 直接用 'dws aitable attachment upload-file --base-id X --file ./report.pdf' 一行完成 3 步, 不用自己处理 HTTP PUT 二进制.",
+      "flags": [
+        {
+          "name": "base-id",
+          "short": null,
+          "type": "string",
+          "description": "Base ID (required)",
+          "required": true
+        },
+        {
+          "name": "file-name",
+          "short": null,
+          "type": "string",
+          "description": "文件名 (必填)",
+          "required": true
+        },
+        {
+          "name": "mime-type",
+          "short": null,
+          "type": "string",
+          "description": "文件 MIME Type",
+          "required": false
+        },
+        {
+          "name": "size",
+          "short": null,
+          "type": "int",
+          "description": "文件大小（字节）",
+          "required": false
+        }
+      ]
+    },
+    "aitable.attachment.upload-file": {
+      "path": [
+        "aitable",
+        "attachment",
+        "upload-file"
+      ],
+      "description": "本地文件一键上传到 AITable 附件字段, 一行命令完成 3 步: 1. prepare_attachment_upload → 获取 OSS 上传地址 uploadUrl + fileToken 2. HTTP PUT 文件二进制 → OSS 3. 返回 fileToken (可直接用于 dws aitable record create/update 的 attachment 字段) 推荐 AI Agent 优先使用此命令上传单个附件, 比手动调用 attachment upload (只 prepare) 之后再自己 PUT 文件二进制要可靠得多.",
+      "flags": [
+        {
+          "name": "base-id",
+          "short": null,
+          "type": "string",
+          "description": "Base ID (required)",
+          "required": true
+        },
+        {
+          "name": "file",
+          "short": null,
+          "type": "string",
+          "description": "Local file path (required)",
+          "required": true
+        }
+      ]
+    },
+    "aitable.base.copy": {
+      "path": [
+        "aitable",
+        "base",
+        "copy"
+      ],
+      "description": "复制 AI 表格到指定目录",
+      "flags": [
+        {
+          "name": "base-id",
+          "short": null,
+          "type": "string",
+          "description": "源 Base ID",
+          "required": false
+        },
+        {
+          "name": "only-struct",
+          "short": null,
+          "type": "bool",
+          "description": "仅复制结构（不含数据），默认 false",
+          "required": false
+        },
+        {
+          "name": "target-folder-id",
+          "short": null,
+          "type": "string",
+          "description": "目标文件夹 ID",
+          "required": false
+        }
+      ]
+    },
+    "aitable.base.create": {
+      "path": [
+        "aitable",
+        "base",
+        "create"
+      ],
+      "description": "创建 AI 表格",
+      "flags": [
+        {
+          "name": "name",
+          "short": null,
+          "type": "string",
+          "description": "Base 名称 (必填)",
+          "required": true
+        },
+        {
+          "name": "template-id",
+          "short": null,
+          "type": "string",
+          "description": "模板 ID",
+          "required": false
+        }
+      ]
+    },
+    "aitable.base.delete": {
+      "path": [
+        "aitable",
+        "base",
+        "delete"
+      ],
+      "description": "Delete specified Base (high risk, irreversible). Use --yes to skip confirmation.",
+      "flags": [
+        {
+          "name": "base-id",
+          "short": null,
+          "type": "string",
+          "description": "Base ID (required)",
+          "required": true
+        },
+        {
+          "name": "reason",
+          "short": null,
+          "type": "string",
+          "description": "Delete reason (optional)",
+          "required": false
+        }
+      ]
+    },
+    "aitable.base.get": {
+      "path": [
+        "aitable",
+        "base",
+        "get"
+      ],
+      "description": "获取 AI 表格信息",
+      "flags": [
+        {
+          "name": "base-id",
+          "short": null,
+          "type": "string",
+          "description": "Base ID (required)",
+          "required": true
+        }
+      ]
+    },
+    "aitable.base.list": {
+      "path": [
+        "aitable",
+        "base",
+        "list"
+      ],
+      "description": "获取 AI 表格列表",
+      "flags": [
+        {
+          "name": "cursor",
+          "short": null,
+          "type": "string",
+          "description": "分页游标",
+          "required": false
+        },
+        {
+          "name": "limit",
+          "short": null,
+          "type": "int",
+          "description": "每页数量",
+          "required": false
+        }
+      ]
+    },
+    "aitable.base.search": {
+      "path": [
+        "aitable",
+        "base",
+        "search"
+      ],
+      "description": "搜索 AI 表格",
+      "flags": [
+        {
+          "name": "cursor",
+          "short": null,
+          "type": "string",
+          "description": "分页游标",
+          "required": false
+        },
+        {
+          "name": "query",
+          "short": null,
+          "type": "string",
+          "description": "Base 名称关键词 (必填)",
+          "required": true
+        }
+      ]
+    },
+    "aitable.base.update": {
+      "path": [
+        "aitable",
+        "base",
+        "update"
+      ],
+      "description": "更新 AI 表格",
+      "flags": [
+        {
+          "name": "base-id",
+          "short": null,
+          "type": "string",
+          "description": "Base ID (required)",
+          "required": true
+        },
+        {
+          "name": "desc",
+          "short": null,
+          "type": "string",
+          "description": "备注文本",
+          "required": false
+        },
+        {
+          "name": "name",
+          "short": null,
+          "type": "string",
+          "description": "新名称 (必填)",
+          "required": true
+        }
+      ]
+    },
+    "aitable.chart.create": {
+      "path": [
+        "aitable",
+        "chart",
+        "create"
+      ],
+      "description": "aitable/create",
+      "flags": [
+        {
+          "name": "base-id",
+          "short": null,
+          "type": "string",
+          "description": "baseId",
+          "required": false
+        },
+        {
+          "name": "config",
+          "short": null,
+          "type": "string",
+          "description": "config",
+          "required": false
+        },
+        {
+          "name": "dashboard-id",
+          "short": null,
+          "type": "string",
+          "description": "dashboardId",
+          "required": false
+        },
+        {
+          "name": "layout",
+          "short": null,
+          "type": "string",
+          "description": "layout",
+          "required": false
+        }
+      ]
+    },
+    "aitable.chart.delete": {
+      "path": [
+        "aitable",
+        "chart",
+        "delete"
+      ],
+      "description": "aitable/delete",
+      "flags": [
+        {
+          "name": "base-id",
+          "short": null,
+          "type": "string",
+          "description": "baseId",
+          "required": false
+        },
+        {
+          "name": "chart-id",
+          "short": null,
+          "type": "string",
+          "description": "chartId",
+          "required": false
+        },
+        {
+          "name": "dashboard-id",
+          "short": null,
+          "type": "string",
+          "description": "dashboardId",
+          "required": false
+        },
+        {
+          "name": "reason",
+          "short": null,
+          "type": "string",
+          "description": "reason",
+          "required": false
+        }
+      ]
+    },
+    "aitable.chart.get": {
+      "path": [
+        "aitable",
+        "chart",
+        "get"
+      ],
+      "description": "aitable/get",
+      "flags": [
+        {
+          "name": "base-id",
+          "short": null,
+          "type": "string",
+          "description": "baseId",
+          "required": false
+        },
+        {
+          "name": "chart-id",
+          "short": null,
+          "type": "string",
+          "description": "chartId",
+          "required": false
+        },
+        {
+          "name": "dashboard-id",
+          "short": null,
+          "type": "string",
+          "description": "dashboardId",
+          "required": false
+        }
+      ]
+    },
+    "aitable.chart.share.get": {
+      "path": [
+        "aitable",
+        "chart",
+        "share",
+        "get"
+      ],
+      "description": "aitable/get",
+      "flags": [
+        {
+          "name": "base-id",
+          "short": null,
+          "type": "string",
+          "description": "baseId",
+          "required": false
+        },
+        {
+          "name": "chart-id",
+          "short": null,
+          "type": "string",
+          "description": "chartId",
+          "required": false
+        },
+        {
+          "name": "dashboard-id",
+          "short": null,
+          "type": "string",
+          "description": "dashboardId",
+          "required": false
+        }
+      ]
+    },
+    "aitable.chart.share.update": {
+      "path": [
+        "aitable",
+        "chart",
+        "share",
+        "update"
+      ],
+      "description": "aitable/update",
+      "flags": [
+        {
+          "name": "allow-back-to-doc",
+          "short": null,
+          "type": "string",
+          "description": "allowBackToDoc",
+          "required": false
+        },
+        {
+          "name": "base-id",
+          "short": null,
+          "type": "string",
+          "description": "baseId",
+          "required": false
+        },
+        {
+          "name": "chart-id",
+          "short": null,
+          "type": "string",
+          "description": "chartId",
+          "required": false
+        },
+        {
+          "name": "dashboard-id",
+          "short": null,
+          "type": "string",
+          "description": "dashboardId",
+          "required": false
+        },
+        {
+          "name": "enabled",
+          "short": null,
+          "type": "string",
+          "description": "enabled",
+          "required": false
+        },
+        {
+          "name": "share-type",
+          "short": null,
+          "type": "string",
+          "description": "shareType",
+          "required": false
+        }
+      ]
+    },
+    "aitable.chart.update": {
+      "path": [
+        "aitable",
+        "chart",
+        "update"
+      ],
+      "description": "aitable/update",
+      "flags": [
+        {
+          "name": "base-id",
+          "short": null,
+          "type": "string",
+          "description": "baseId",
+          "required": false
+        },
+        {
+          "name": "chart-id",
+          "short": null,
+          "type": "string",
+          "description": "chartId",
+          "required": false
+        },
+        {
+          "name": "config",
+          "short": null,
+          "type": "string",
+          "description": "config",
+          "required": false
+        },
+        {
+          "name": "dashboard-id",
+          "short": null,
+          "type": "string",
+          "description": "dashboardId",
+          "required": false
+        },
+        {
+          "name": "layout",
+          "short": null,
+          "type": "string",
+          "description": "layout",
+          "required": false
+        }
+      ]
+    },
+    "aitable.chart.widgets-example": {
+      "path": [
+        "aitable",
+        "chart",
+        "widgets-example"
+      ],
+      "description": "aitable/widgets-example",
+      "flags": []
+    },
+    "aitable.dashboard.config-example": {
+      "path": [
+        "aitable",
+        "dashboard",
+        "config-example"
+      ],
+      "description": "aitable/config-example",
+      "flags": []
+    },
+    "aitable.dashboard.create": {
+      "path": [
+        "aitable",
+        "dashboard",
+        "create"
+      ],
+      "description": "aitable/create",
+      "flags": [
+        {
+          "name": "base-id",
+          "short": null,
+          "type": "string",
+          "description": "baseId",
+          "required": false
+        },
+        {
+          "name": "config",
+          "short": null,
+          "type": "string",
+          "description": "config",
+          "required": false
+        }
+      ]
+    },
+    "aitable.dashboard.delete": {
+      "path": [
+        "aitable",
+        "dashboard",
+        "delete"
+      ],
+      "description": "aitable/delete",
+      "flags": [
+        {
+          "name": "base-id",
+          "short": null,
+          "type": "string",
+          "description": "baseId",
+          "required": false
+        },
+        {
+          "name": "dashboard-id",
+          "short": null,
+          "type": "string",
+          "description": "dashboardId",
+          "required": false
+        },
+        {
+          "name": "reason",
+          "short": null,
+          "type": "string",
+          "description": "reason",
+          "required": false
+        }
+      ]
+    },
+    "aitable.dashboard.get": {
+      "path": [
+        "aitable",
+        "dashboard",
+        "get"
+      ],
+      "description": "aitable/get",
+      "flags": [
+        {
+          "name": "base-id",
+          "short": null,
+          "type": "string",
+          "description": "baseId",
+          "required": false
+        },
+        {
+          "name": "dashboard-id",
+          "short": null,
+          "type": "string",
+          "description": "dashboardId",
+          "required": false
+        }
+      ]
+    },
+    "aitable.dashboard.share.get": {
+      "path": [
+        "aitable",
+        "dashboard",
+        "share",
+        "get"
+      ],
+      "description": "aitable/get",
+      "flags": [
+        {
+          "name": "base-id",
+          "short": null,
+          "type": "string",
+          "description": "baseId",
+          "required": false
+        },
+        {
+          "name": "dashboard-id",
+          "short": null,
+          "type": "string",
+          "description": "dashboardId",
+          "required": false
+        }
+      ]
+    },
+    "aitable.dashboard.share.update": {
+      "path": [
+        "aitable",
+        "dashboard",
+        "share",
+        "update"
+      ],
+      "description": "aitable/update",
+      "flags": [
+        {
+          "name": "allow-back-to-doc",
+          "short": null,
+          "type": "string",
+          "description": "allowBackToDoc",
+          "required": false
+        },
+        {
+          "name": "base-id",
+          "short": null,
+          "type": "string",
+          "description": "baseId",
+          "required": false
+        },
+        {
+          "name": "dashboard-id",
+          "short": null,
+          "type": "string",
+          "description": "dashboardId",
+          "required": false
+        },
+        {
+          "name": "enabled",
+          "short": null,
+          "type": "string",
+          "description": "enabled",
+          "required": false
+        },
+        {
+          "name": "share-type",
+          "short": null,
+          "type": "string",
+          "description": "shareType",
+          "required": false
+        }
+      ]
+    },
+    "aitable.dashboard.update": {
+      "path": [
+        "aitable",
+        "dashboard",
+        "update"
+      ],
+      "description": "aitable/update",
+      "flags": [
+        {
+          "name": "base-id",
+          "short": null,
+          "type": "string",
+          "description": "baseId",
+          "required": false
+        },
+        {
+          "name": "config",
+          "short": null,
+          "type": "string",
+          "description": "config",
+          "required": false
+        },
+        {
+          "name": "dashboard-id",
+          "short": null,
+          "type": "string",
+          "description": "dashboardId",
+          "required": false
+        }
+      ]
+    },
+    "aitable.export.data": {
+      "path": [
+        "aitable",
+        "export",
+        "data"
+      ],
+      "description": "aitable/data",
+      "flags": [
+        {
+          "name": "base-id",
+          "short": null,
+          "type": "string",
+          "description": "baseId",
+          "required": false
+        },
+        {
+          "name": "format",
+          "short": null,
+          "type": "string",
+          "description": "format",
+          "required": false
+        },
+        {
+          "name": "scope",
+          "short": null,
+          "type": "string",
+          "description": "scope",
+          "required": false
+        },
+        {
+          "name": "table-id",
+          "short": null,
+          "type": "string",
+          "description": "tableId",
+          "required": false
+        },
+        {
+          "name": "task-id",
+          "short": null,
+          "type": "string",
+          "description": "taskId",
+          "required": false
+        },
+        {
+          "name": "timeout-ms",
+          "short": null,
+          "type": "string",
+          "description": "timeoutMs",
+          "required": false
+        },
+        {
+          "name": "view-id",
+          "short": null,
+          "type": "string",
+          "description": "viewId",
+          "required": false
+        }
+      ]
+    },
+    "aitable.field.create": {
+      "path": [
+        "aitable",
+        "field",
+        "create"
+      ],
+      "description": "创建字段",
+      "flags": [
+        {
+          "name": "base-id",
+          "short": null,
+          "type": "string",
+          "description": "Base ID (required)",
+          "required": true
+        },
+        {
+          "name": "config",
+          "short": null,
+          "type": "string",
+          "description": "字段配置 JSON",
+          "required": false
+        },
+        {
+          "name": "fields",
+          "short": null,
+          "type": "string",
+          "description": "字段 JSON 数组",
+          "required": false
+        },
+        {
+          "name": "name",
+          "short": null,
+          "type": "string",
+          "description": "单字段名称",
+          "required": false
+        },
+        {
+          "name": "table-id",
+          "short": null,
+          "type": "string",
+          "description": "Table ID (必填)",
+          "required": true
+        },
+        {
+          "name": "type",
+          "short": null,
+          "type": "string",
+          "description": "单字段类型",
+          "required": false
+        }
+      ]
+    },
+    "aitable.field.delete": {
+      "path": [
+        "aitable",
+        "field",
+        "delete"
+      ],
+      "description": "Delete specified field (high risk, irreversible). Use --yes to skip confirmation.",
+      "flags": [
+        {
+          "name": "base-id",
+          "short": null,
+          "type": "string",
+          "description": "Base ID (required)",
+          "required": true
+        },
+        {
+          "name": "field-id",
+          "short": null,
+          "type": "string",
+          "description": "field ID (required)",
+          "required": true
+        },
+        {
+          "name": "table-id",
+          "short": null,
+          "type": "string",
+          "description": "data table ID (required)",
+          "required": true
+        }
+      ]
+    },
+    "aitable.field.get": {
+      "path": [
+        "aitable",
+        "field",
+        "get"
+      ],
+      "description": "获取字段详情",
+      "flags": [
+        {
+          "name": "base-id",
+          "short": null,
+          "type": "string",
+          "description": "Base ID (required)",
+          "required": true
+        },
+        {
+          "name": "field-ids",
+          "short": null,
+          "type": "string",
+          "description": "Field ID 列表，逗号分隔",
+          "required": false
+        },
+        {
+          "name": "table-id",
+          "short": null,
+          "type": "string",
+          "description": "Table ID (必填)",
+          "required": true
+        }
+      ]
+    },
+    "aitable.field.update": {
+      "path": [
+        "aitable",
+        "field",
+        "update"
+      ],
+      "description": "更新字段",
+      "flags": [
+        {
+          "name": "base-id",
+          "short": null,
+          "type": "string",
+          "description": "Base ID (required)",
+          "required": true
+        },
+        {
+          "name": "config",
+          "short": null,
+          "type": "string",
+          "description": "字段配置 JSON",
+          "required": false
+        },
+        {
+          "name": "field-id",
+          "short": null,
+          "type": "string",
+          "description": "Field ID (必填)",
+          "required": true
+        },
+        {
+          "name": "name",
+          "short": null,
+          "type": "string",
+          "description": "新字段名",
+          "required": false
+        },
+        {
+          "name": "table-id",
+          "short": null,
+          "type": "string",
+          "description": "Table ID (必填)",
+          "required": true
+        }
+      ]
+    },
+    "aitable.import.data": {
+      "path": [
+        "aitable",
+        "import",
+        "data"
+      ],
+      "description": "aitable/data",
+      "flags": [
+        {
+          "name": "import-id",
+          "short": null,
+          "type": "string",
+          "description": "importId",
+          "required": false
+        },
+        {
+          "name": "timeout",
+          "short": null,
+          "type": "string",
+          "description": "timeout",
+          "required": false
+        }
+      ]
+    },
+    "aitable.import.upload": {
+      "path": [
+        "aitable",
+        "import",
+        "upload"
+      ],
+      "description": "aitable/upload",
+      "flags": [
+        {
+          "name": "base-id",
+          "short": null,
+          "type": "string",
+          "description": "baseId",
+          "required": false
+        },
+        {
+          "name": "file-name",
+          "short": null,
+          "type": "string",
+          "description": "fileName",
+          "required": false
+        },
+        {
+          "name": "file-size",
+          "short": null,
+          "type": "string",
+          "description": "fileSize",
+          "required": false
+        }
+      ]
+    },
+    "aitable.record.create": {
+      "path": [
+        "aitable",
+        "record",
+        "create"
+      ],
+      "description": "新增记录",
+      "flags": [
+        {
+          "name": "base-id",
+          "short": null,
+          "type": "string",
+          "description": "Base ID (required)",
+          "required": true
+        },
+        {
+          "name": "records",
+          "short": null,
+          "type": "string",
+          "description": "记录 JSON 数组 (必填)",
+          "required": true
+        },
+        {
+          "name": "table-id",
+          "short": null,
+          "type": "string",
+          "description": "Table ID (必填)",
+          "required": true
+        }
+      ]
+    },
+    "aitable.record.delete": {
+      "path": [
+        "aitable",
+        "record",
+        "delete"
+      ],
+      "description": "Batch delete records (high risk, irreversible), max 100 per batch. Use --yes to skip confirmation.",
+      "flags": [
+        {
+          "name": "base-id",
+          "short": null,
+          "type": "string",
+          "description": "Base ID (required)",
+          "required": true
+        },
+        {
+          "name": "record-ids",
+          "short": null,
+          "type": "string",
+          "description": "Record ID list, comma-separated (required)",
+          "required": true
+        },
+        {
+          "name": "table-id",
+          "short": null,
+          "type": "string",
+          "description": "data table ID (required)",
+          "required": true
+        }
+      ]
+    },
+    "aitable.record.query": {
+      "path": [
+        "aitable",
+        "record",
+        "query"
+      ],
+      "description": "查询记录",
+      "flags": [
+        {
+          "name": "base-id",
+          "short": null,
+          "type": "string",
+          "description": "Base ID (required)",
+          "required": true
+        },
+        {
+          "name": "cursor",
+          "short": null,
+          "type": "string",
+          "description": "分页游标",
+          "required": false
+        },
+        {
+          "name": "field-ids",
+          "short": null,
+          "type": "string",
+          "description": "Field ID 列表，逗号分隔",
+          "required": false
+        },
+        {
+          "name": "filters",
+          "short": null,
+          "type": "string",
+          "description": "过滤条件 JSON",
+          "required": false
+        },
+        {
+          "name": "limit",
+          "short": null,
+          "type": "int",
+          "description": "单次最大记录数",
+          "required": false
+        },
+        {
+          "name": "query",
+          "short": null,
+          "type": "string",
+          "description": "全文关键词",
+          "required": false
+        },
+        {
+          "name": "record-ids",
+          "short": null,
+          "type": "string",
+          "description": "Record ID 列表，逗号分隔",
+          "required": false
+        },
+        {
+          "name": "sort",
+          "short": null,
+          "type": "string",
+          "description": "排序 JSON 数组",
+          "required": false
+        },
+        {
+          "name": "table-id",
+          "short": null,
+          "type": "string",
+          "description": "Table ID (必填)",
+          "required": true
+        }
+      ]
+    },
+    "aitable.record.update": {
+      "path": [
+        "aitable",
+        "record",
+        "update"
+      ],
+      "description": "更新记录",
+      "flags": [
+        {
+          "name": "base-id",
+          "short": null,
+          "type": "string",
+          "description": "Base ID (required)",
+          "required": true
+        },
+        {
+          "name": "records",
+          "short": null,
+          "type": "string",
+          "description": "记录 JSON 数组 (必填)",
+          "required": true
+        },
+        {
+          "name": "table-id",
+          "short": null,
+          "type": "string",
+          "description": "Table ID (必填)",
+          "required": true
+        }
+      ]
+    },
+    "aitable.table.create": {
+      "path": [
+        "aitable",
+        "table",
+        "create"
+      ],
+      "description": "创建数据表",
+      "flags": [
+        {
+          "name": "base-id",
+          "short": null,
+          "type": "string",
+          "description": "Base ID (required)",
+          "required": true
+        },
+        {
+          "name": "fields",
+          "short": null,
+          "type": "string",
+          "description": "字段 JSON 数组 (必填)",
+          "required": true
+        },
+        {
+          "name": "name",
+          "short": null,
+          "type": "string",
+          "description": "表格名称 (必填)",
+          "required": true
+        }
+      ]
+    },
+    "aitable.table.delete": {
+      "path": [
+        "aitable",
+        "table",
+        "delete"
+      ],
+      "description": "Delete specified data table (high risk, irreversible). Use --yes to skip confirmation.",
+      "flags": [
+        {
+          "name": "base-id",
+          "short": null,
+          "type": "string",
+          "description": "Base ID (required)",
+          "required": true
+        },
+        {
+          "name": "reason",
+          "short": null,
+          "type": "string",
+          "description": "Delete reason (optional)",
+          "required": false
+        },
+        {
+          "name": "table-id",
+          "short": null,
+          "type": "string",
+          "description": "data table ID (required)",
+          "required": true
+        }
+      ]
+    },
+    "aitable.table.get": {
+      "path": [
+        "aitable",
+        "table",
+        "get"
+      ],
+      "description": "获取数据表",
+      "flags": [
+        {
+          "name": "base-id",
+          "short": null,
+          "type": "string",
+          "description": "Base ID (required)",
+          "required": true
+        },
+        {
+          "name": "table-ids",
+          "short": null,
+          "type": "string",
+          "description": "Table ID 列表，逗号分隔",
+          "required": false
+        }
+      ]
+    },
+    "aitable.table.update": {
+      "path": [
+        "aitable",
+        "table",
+        "update"
+      ],
+      "description": "更新数据表",
+      "flags": [
+        {
+          "name": "base-id",
+          "short": null,
+          "type": "string",
+          "description": "Base ID (required)",
+          "required": true
+        },
+        {
+          "name": "name",
+          "short": null,
+          "type": "string",
+          "description": "新表名 (必填)",
+          "required": true
+        },
+        {
+          "name": "table-id",
+          "short": null,
+          "type": "string",
+          "description": "Table ID (必填)",
+          "required": true
+        }
+      ]
+    },
+    "aitable.template.search": {
+      "path": [
+        "aitable",
+        "template",
+        "search"
+      ],
+      "description": "搜索模板",
+      "flags": [
+        {
+          "name": "cursor",
+          "short": null,
+          "type": "string",
+          "description": "分页游标",
+          "required": false
+        },
+        {
+          "name": "limit",
+          "short": null,
+          "type": "int",
+          "description": "每页数量",
+          "required": false
+        },
+        {
+          "name": "query",
+          "short": null,
+          "type": "string",
+          "description": "模板关键词 (必填)",
+          "required": true
+        }
+      ]
+    },
+    "aitable.view.create": {
+      "path": [
+        "aitable",
+        "view",
+        "create"
+      ],
+      "description": "aitable/create",
+      "flags": [
+        {
+          "name": "base-id",
+          "short": null,
+          "type": "string",
+          "description": "baseId",
+          "required": false
+        },
+        {
+          "name": "config",
+          "short": null,
+          "type": "string",
+          "description": "config",
+          "required": false
+        },
+        {
+          "name": "name",
+          "short": null,
+          "type": "string",
+          "description": "viewName",
+          "required": false
+        },
+        {
+          "name": "table-id",
+          "short": null,
+          "type": "string",
+          "description": "tableId",
+          "required": false
+        },
+        {
+          "name": "view-type",
+          "short": null,
+          "type": "string",
+          "description": "viewType",
+          "required": false
+        }
+      ]
+    },
+    "aitable.view.delete": {
+      "path": [
+        "aitable",
+        "view",
+        "delete"
+      ],
+      "description": "aitable/delete",
+      "flags": [
+        {
+          "name": "base-id",
+          "short": null,
+          "type": "string",
+          "description": "baseId",
+          "required": false
+        },
+        {
+          "name": "table-id",
+          "short": null,
+          "type": "string",
+          "description": "tableId",
+          "required": false
+        },
+        {
+          "name": "view-id",
+          "short": null,
+          "type": "string",
+          "description": "viewId",
+          "required": false
+        }
+      ]
+    },
+    "aitable.view.get": {
+      "path": [
+        "aitable",
+        "view",
+        "get"
+      ],
+      "description": "aitable/get",
+      "flags": [
+        {
+          "name": "base-id",
+          "short": null,
+          "type": "string",
+          "description": "baseId",
+          "required": false
+        },
+        {
+          "name": "table-id",
+          "short": null,
+          "type": "string",
+          "description": "tableId",
+          "required": false
+        },
+        {
+          "name": "view-ids",
+          "short": null,
+          "type": "string",
+          "description": "viewIds",
+          "required": false
+        }
+      ]
+    },
+    "aitable.view.update": {
+      "path": [
+        "aitable",
+        "view",
+        "update"
+      ],
+      "description": "aitable/update",
+      "flags": [
+        {
+          "name": "base-id",
+          "short": null,
+          "type": "string",
+          "description": "baseId",
+          "required": false
+        },
+        {
+          "name": "config",
+          "short": null,
+          "type": "string",
+          "description": "config",
+          "required": false
+        },
+        {
+          "name": "name",
+          "short": null,
+          "type": "string",
+          "description": "newViewName",
+          "required": false
+        },
+        {
+          "name": "table-id",
+          "short": null,
+          "type": "string",
+          "description": "tableId",
+          "required": false
+        },
+        {
+          "name": "view-id",
+          "short": null,
+          "type": "string",
+          "description": "viewId",
+          "required": false
+        }
+      ]
+    },
+    "attendance.record.get": {
+      "path": [
+        "attendance",
+        "record",
+        "get"
+      ],
+      "description": "查询个人考勤详情",
+      "flags": [
+        {
+          "name": "date",
+          "short": null,
+          "type": "string",
+          "description": "查询日期，格式 YYYY-MM-DD (必填)",
+          "required": true
+        },
+        {
+          "name": "user",
+          "short": null,
+          "type": "string",
+          "description": "钉钉用户 ID (必填)",
+          "required": true
+        }
+      ]
+    },
+    "attendance.rules": {
+      "path": [
+        "attendance",
+        "rules"
+      ],
+      "description": "调用 MCP 工具 query_attendance_group_or_rules 查询考勤组/考勤规则。 例如：我属于哪个考勤组、打卡范围是什么、弹性工时怎么算。",
+      "flags": [
+        {
+          "name": "date",
+          "short": null,
+          "type": "string",
+          "description": "考勤日期，格式 YYYY-MM-DD 或 yyyy-MM-dd HH:mm:ss (必填)",
+          "required": true
+        }
+      ]
+    },
+    "attendance.shift.list": {
+      "path": [
+        "attendance",
+        "shift",
+        "list"
+      ],
+      "description": "批量查询多个员工在指定日期的班次信息。最多 7 天，最多 50 人。",
+      "flags": [
+        {
+          "name": "end",
+          "short": null,
+          "type": "string",
+          "description": "End date, format YYYY-MM-DD (required)",
+          "required": true
+        },
+        {
+          "name": "start",
+          "short": null,
+          "type": "string",
+          "description": "Start date, format YYYY-MM-DD (required)",
+          "required": true
+        },
+        {
+          "name": "users",
+          "short": null,
+          "type": "string",
+          "description": "Comma-separated user ID list, max 50 (required)",
+          "required": true
+        }
+      ]
+    },
+    "attendance.summary": {
+      "path": [
+        "attendance",
+        "summary"
+      ],
+      "description": "查询某个人的考勤统计摘要。 --user、--date、--stats-type 均必填。 钉钉服务端业务层强制要求 --stats-type（week/month），不填会返回 C0002 统计类型错误。",
+      "flags": [
+        {
+          "name": "date",
+          "short": null,
+          "type": "string",
+          "description": "工作日期，格式 yyyy-MM-dd HH:mm:ss，如 2026-03-12 15:00:00（必填）",
+          "required": true
+        },
+        {
+          "name": "stats-type",
+          "short": null,
+          "type": "string",
+          "description": "统计类型：week（周统计）或 month（月统计）（必填，钉钉服务端业务层强制要求）",
+          "required": true
+        },
+        {
+          "name": "user",
+          "short": null,
+          "type": "string",
+          "description": "钉钉用户 ID（必填）",
+          "required": true
+        }
+      ]
+    },
+    "calendar.busy.search": {
+      "path": [
+        "calendar",
+        "busy",
+        "search"
+      ],
+      "description": "calendar/search",
+      "flags": [
+        {
+          "name": "end",
+          "short": null,
+          "type": "string",
+          "description": "endTime",
+          "required": false
+        },
+        {
+          "name": "start",
+          "short": null,
+          "type": "string",
+          "description": "startTime",
+          "required": false
+        },
+        {
+          "name": "users",
+          "short": null,
+          "type": "string",
+          "description": "userIds",
+          "required": false
+        }
+      ]
+    },
+    "calendar.event.create": {
+      "path": [
+        "calendar",
+        "event",
+        "create"
+      ],
+      "description": "calendar/create",
+      "flags": [
+        {
+          "name": "attendees",
+          "short": null,
+          "type": "string",
+          "description": "attendees",
+          "required": false
+        },
+        {
+          "name": "desc",
+          "short": null,
+          "type": "string",
+          "description": "description",
+          "required": false
+        },
+        {
+          "name": "end",
+          "short": null,
+          "type": "string",
+          "description": "endDateTime",
+          "required": false
+        },
+        {
+          "name": "open-dingtalk-ids",
+          "short": null,
+          "type": "string",
+          "description": "openDingTalkIds",
+          "required": false
+        },
+        {
+          "name": "start",
+          "short": null,
+          "type": "string",
+          "description": "startDateTime",
+          "required": false
+        },
+        {
+          "name": "timezone",
+          "short": null,
+          "type": "string",
+          "description": "timeZone",
+          "required": false
+        },
+        {
+          "name": "title",
+          "short": null,
+          "type": "string",
+          "description": "summary",
+          "required": false
+        }
+      ]
+    },
+    "calendar.event.delete": {
+      "path": [
+        "calendar",
+        "event",
+        "delete"
+      ],
+      "description": "calendar/delete",
+      "flags": [
+        {
+          "name": "id",
+          "short": null,
+          "type": "string",
+          "description": "eventId",
+          "required": false
+        }
+      ]
+    },
+    "calendar.event.get": {
+      "path": [
+        "calendar",
+        "event",
+        "get"
+      ],
+      "description": "calendar/get",
+      "flags": [
+        {
+          "name": "id",
+          "short": null,
+          "type": "string",
+          "description": "eventId",
+          "required": false
+        }
+      ]
+    },
+    "calendar.event.list": {
+      "path": [
+        "calendar",
+        "event",
+        "list"
+      ],
+      "description": "calendar/list",
+      "flags": [
+        {
+          "name": "end",
+          "short": null,
+          "type": "string",
+          "description": "endTime",
+          "required": false
+        },
+        {
+          "name": "start",
+          "short": null,
+          "type": "string",
+          "description": "startTime",
+          "required": false
+        }
+      ]
+    },
+    "calendar.event.suggest": {
+      "path": [
+        "calendar",
+        "event",
+        "suggest"
+      ],
+      "description": "calendar/suggest",
+      "flags": [
+        {
+          "name": "duration",
+          "short": null,
+          "type": "string",
+          "description": "durationMinutes",
+          "required": false
+        },
+        {
+          "name": "end",
+          "short": null,
+          "type": "string",
+          "description": "end",
+          "required": false
+        },
+        {
+          "name": "start",
+          "short": null,
+          "type": "string",
+          "description": "start",
+          "required": false
+        },
+        {
+          "name": "timezone",
+          "short": null,
+          "type": "string",
+          "description": "timeZone",
+          "required": false
+        },
+        {
+          "name": "users",
+          "short": null,
+          "type": "string",
+          "description": "attendeeUserIds",
+          "required": false
+        }
+      ]
+    },
+    "calendar.event.update": {
+      "path": [
+        "calendar",
+        "event",
+        "update"
+      ],
+      "description": "calendar/update",
+      "flags": [
+        {
+          "name": "desc",
+          "short": null,
+          "type": "string",
+          "description": "description",
+          "required": false
+        },
+        {
+          "name": "end",
+          "short": null,
+          "type": "string",
+          "description": "endDateTime",
+          "required": false
+        },
+        {
+          "name": "id",
+          "short": null,
+          "type": "string",
+          "description": "eventId",
+          "required": false
+        },
+        {
+          "name": "start",
+          "short": null,
+          "type": "string",
+          "description": "startDateTime",
+          "required": false
+        },
+        {
+          "name": "timezone",
+          "short": null,
+          "type": "string",
+          "description": "timeZone",
+          "required": false
+        },
+        {
+          "name": "title",
+          "short": null,
+          "type": "string",
+          "description": "summary",
+          "required": false
+        }
+      ]
+    },
+    "calendar.participant.add": {
+      "path": [
+        "calendar",
+        "participant",
+        "add"
+      ],
+      "description": "calendar/add",
+      "flags": [
+        {
+          "name": "event",
+          "short": null,
+          "type": "string",
+          "description": "eventId",
+          "required": false
+        },
+        {
+          "name": "optional",
+          "short": null,
+          "type": "string",
+          "description": "optional",
+          "required": false
+        },
+        {
+          "name": "users",
+          "short": null,
+          "type": "string",
+          "description": "attendeesToAdd",
+          "required": false
+        }
+      ]
+    },
+    "calendar.participant.delete": {
+      "path": [
+        "calendar",
+        "participant",
+        "delete"
+      ],
+      "description": "calendar/delete",
+      "flags": [
+        {
+          "name": "event",
+          "short": null,
+          "type": "string",
+          "description": "eventId",
+          "required": false
+        },
+        {
+          "name": "users",
+          "short": null,
+          "type": "string",
+          "description": "attendeesToRemove",
+          "required": false
+        }
+      ]
+    },
+    "calendar.participant.list": {
+      "path": [
+        "calendar",
+        "participant",
+        "list"
+      ],
+      "description": "calendar/list",
+      "flags": [
+        {
+          "name": "event",
+          "short": null,
+          "type": "string",
+          "description": "eventId",
+          "required": false
+        }
+      ]
+    },
+    "calendar.room.add": {
+      "path": [
+        "calendar",
+        "room",
+        "add"
+      ],
+      "description": "calendar/add",
+      "flags": [
+        {
+          "name": "event",
+          "short": null,
+          "type": "string",
+          "description": "eventId",
+          "required": false
+        },
+        {
+          "name": "rooms",
+          "short": null,
+          "type": "string",
+          "description": "roomIds",
+          "required": false
+        }
+      ]
+    },
+    "calendar.room.delete": {
+      "path": [
+        "calendar",
+        "room",
+        "delete"
+      ],
+      "description": "calendar/delete",
+      "flags": [
+        {
+          "name": "event",
+          "short": null,
+          "type": "string",
+          "description": "eventId",
+          "required": false
+        },
+        {
+          "name": "rooms",
+          "short": null,
+          "type": "string",
+          "description": "roomIds",
+          "required": false
+        }
+      ]
+    },
+    "calendar.room.list-groups": {
+      "path": [
+        "calendar",
+        "room",
+        "list-groups"
+      ],
+      "description": "calendar/list-groups",
+      "flags": []
+    },
+    "calendar.room.search": {
+      "path": [
+        "calendar",
+        "room",
+        "search"
+      ],
+      "description": "calendar/search",
+      "flags": [
+        {
+          "name": "available",
+          "short": null,
+          "type": "string",
+          "description": "needAvailable",
+          "required": false
+        },
+        {
+          "name": "end",
+          "short": null,
+          "type": "string",
+          "description": "endTime",
+          "required": false
+        },
+        {
+          "name": "group-id",
+          "short": null,
+          "type": "string",
+          "description": "groupId",
+          "required": false
+        },
+        {
+          "name": "start",
+          "short": null,
+          "type": "string",
+          "description": "startTime",
+          "required": false
+        }
+      ]
+    },
+    "chat.bot.find": {
+      "path": [
+        "chat",
+        "bot",
+        "find"
+      ],
+      "description": "搜索企业机器人（按关键词模糊匹配 bot 名称）。",
+      "flags": [
+        {
+          "name": "cursor",
+          "short": null,
+          "type": "string",
+          "description": "分页游标",
+          "required": false
+        },
+        {
+          "name": "keyword",
+          "short": null,
+          "type": "string",
+          "description": "搜索关键词（必填）",
+          "required": true
+        },
+        {
+          "name": "limit",
+          "short": null,
+          "type": "int",
+          "description": "每页返回数量",
+          "required": false
+        }
+      ]
+    },
+    "chat.bot.search": {
+      "path": [
+        "chat",
+        "bot",
+        "search"
+      ],
+      "description": "搜索我的机器人",
+      "flags": [
+        {
+          "name": "name",
+          "short": null,
+          "type": "string",
+          "description": "robotName",
+          "required": false
+        },
+        {
+          "name": "page",
+          "short": null,
+          "type": "string",
+          "description": "currentPage",
+          "required": false
+        },
+        {
+          "name": "size",
+          "short": null,
+          "type": "string",
+          "description": "pageSize",
+          "required": false
+        }
+      ]
+    },
+    "chat.conversation-info": {
+      "path": [
+        "chat",
+        "conversation-info"
+      ],
+      "description": "chat/conversation-info",
+      "flags": [
+        {
+          "name": "group",
+          "short": null,
+          "type": "string",
+          "description": "openConversationId",
+          "required": false
+        },
+        {
+          "name": "open-dingtalk-id",
+          "short": null,
+          "type": "string",
+          "description": "openDingTalkId",
+          "required": false
+        }
+      ]
+    },
+    "chat.group.bots": {
+      "path": [
+        "chat",
+        "group",
+        "bots"
+      ],
+      "description": "列出群内的机器人。",
+      "flags": [
+        {
+          "name": "group",
+          "short": null,
+          "type": "string",
+          "description": "群 openConversationId（必填）",
+          "required": true
+        }
+      ]
+    },
+    "chat.group.create": {
+      "path": [
+        "chat",
+        "group",
+        "create"
+      ],
+      "description": "创建群",
+      "flags": [
+        {
+          "name": "name",
+          "short": null,
+          "type": "string",
+          "description": "群名称 (必填)",
+          "required": true
+        },
+        {
+          "name": "users",
+          "short": null,
+          "type": "string",
+          "description": "群成员 userId 列表，逗号分隔 (必填)",
+          "required": true
+        }
+      ]
+    },
+    "chat.group.dismiss": {
+      "path": [
+        "chat",
+        "group",
+        "dismiss"
+      ],
+      "description": "解散群（不可恢复，仅群主可用）。",
+      "flags": [
+        {
+          "name": "group",
+          "short": null,
+          "type": "string",
+          "description": "群 openConversationId（必填）",
+          "required": true
+        }
+      ]
+    },
+    "chat.group.get-by-group-id": {
+      "path": [
+        "chat",
+        "group",
+        "get-by-group-id"
+      ],
+      "description": "按内部 groupId 获取会话信息",
+      "flags": [
+        {
+          "name": "group-id",
+          "short": null,
+          "type": "string",
+          "description": "内部数字 groupId（必填）",
+          "required": true
+        }
+      ]
+    },
+    "chat.group.invite-url": {
+      "path": [
+        "chat",
+        "group",
+        "invite-url"
+      ],
+      "description": "获取群邀请链接",
+      "flags": [
+        {
+          "name": "expires-seconds",
+          "short": null,
+          "type": "int",
+          "description": "expiresSeconds",
+          "required": false
+        },
+        {
+          "name": "group",
+          "short": null,
+          "type": "string",
+          "description": "群/会话 openConversationId（必填）",
+          "required": true
+        }
+      ]
+    },
+    "chat.group.member-role.add": {
+      "path": [
+        "chat",
+        "group",
+        "member-role",
+        "add"
+      ],
+      "description": "新增群自定义角色",
+      "flags": [
+        {
+          "name": "group",
+          "short": null,
+          "type": "string",
+          "description": "群/会话 openConversationId（必填）",
+          "required": true
+        },
+        {
+          "name": "name",
+          "short": null,
+          "type": "string",
+          "description": "自定义角色名称（必填）",
+          "required": true
+        }
+      ]
+    },
+    "chat.group.member-role.list": {
+      "path": [
+        "chat",
+        "group",
+        "member-role",
+        "list"
+      ],
+      "description": "列出群自定义角色",
+      "flags": [
+        {
+          "name": "group",
+          "short": null,
+          "type": "string",
+          "description": "群/会话 openConversationId（必填）",
+          "required": true
+        }
+      ]
+    },
+    "chat.group.member-role.query-user": {
+      "path": [
+        "chat",
+        "group",
+        "member-role",
+        "query-user"
+      ],
+      "description": "查询成员自定义角色",
+      "flags": [
+        {
+          "name": "group",
+          "short": null,
+          "type": "string",
+          "description": "群/会话 openConversationId（必填）",
+          "required": true
+        },
+        {
+          "name": "user",
+          "short": null,
+          "type": "string",
+          "description": "目标成员 openDingTalkId（必填）",
+          "required": true
+        }
+      ]
+    },
+    "chat.group.member-role.remove": {
+      "path": [
+        "chat",
+        "group",
+        "member-role",
+        "remove"
+      ],
+      "description": "删除群自定义角色",
+      "flags": [
+        {
+          "name": "group",
+          "short": null,
+          "type": "string",
+          "description": "群/会话 openConversationId（必填）",
+          "required": true
+        },
+        {
+          "name": "role-id",
+          "short": null,
+          "type": "string",
+          "description": "要删除的自定义角色 openRoleId（必填）",
+          "required": true
+        }
+      ]
+    },
+    "chat.group.member-role.remove-user": {
+      "path": [
+        "chat",
+        "group",
+        "member-role",
+        "remove-user"
+      ],
+      "description": "移除成员自定义角色",
+      "flags": [
+        {
+          "name": "group",
+          "short": null,
+          "type": "string",
+          "description": "群/会话 openConversationId（必填）",
+          "required": true
+        },
+        {
+          "name": "role-ids",
+          "short": null,
+          "type": "string",
+          "description": "要移除的自定义角色 openRoleId 列表（必填，逗号分隔）",
+          "required": true
+        },
+        {
+          "name": "user",
+          "short": null,
+          "type": "string",
+          "description": "目标成员 openDingTalkId（必填）",
+          "required": true
+        }
+      ]
+    },
+    "chat.group.member-role.set-user": {
+      "path": [
+        "chat",
+        "group",
+        "member-role",
+        "set-user"
+      ],
+      "description": "给成员设置自定义角色",
+      "flags": [
+        {
+          "name": "group",
+          "short": null,
+          "type": "string",
+          "description": "群/会话 openConversationId（必填）",
+          "required": true
+        },
+        {
+          "name": "role-ids",
+          "short": null,
+          "type": "string",
+          "description": "要赋予的自定义角色 openRoleId 列表（必填，逗号分隔）",
+          "required": true
+        },
+        {
+          "name": "user",
+          "short": null,
+          "type": "string",
+          "description": "目标成员 openDingTalkId（必填）",
+          "required": true
+        }
+      ]
+    },
+    "chat.group.member-role.update": {
+      "path": [
+        "chat",
+        "group",
+        "member-role",
+        "update"
+      ],
+      "description": "更新群自定义角色",
+      "flags": [
+        {
+          "name": "group",
+          "short": null,
+          "type": "string",
+          "description": "群/会话 openConversationId（必填）",
+          "required": true
+        },
+        {
+          "name": "name",
+          "short": null,
+          "type": "string",
+          "description": "自定义角色新名称（必填）",
+          "required": true
+        },
+        {
+          "name": "role-id",
+          "short": null,
+          "type": "string",
+          "description": "自定义角色 openRoleId（必填）",
+          "required": true
+        }
+      ]
+    },
+    "chat.group.members.add": {
+      "path": [
+        "chat",
+        "group",
+        "members",
+        "add"
+      ],
+      "description": "向群中添加成员",
+      "flags": [
+        {
+          "name": "id",
+          "short": null,
+          "type": "string",
+          "description": "群 ID / openconversation_id（必填）",
+          "required": true
+        },
+        {
+          "name": "users",
+          "short": null,
+          "type": "string",
+          "description": "要添加的用户 userId 列表，逗号分隔（必填）",
+          "required": true
+        }
+      ]
+    },
+    "chat.group.members.add-bot": {
+      "path": [
+        "chat",
+        "group",
+        "members",
+        "add-bot"
+      ],
+      "description": "添加机器人到群",
+      "flags": [
+        {
+          "name": "id",
+          "short": null,
+          "type": "string",
+          "description": "openConversationId",
+          "required": false
+        },
+        {
+          "name": "robot-code",
+          "short": null,
+          "type": "string",
+          "description": "robotCode",
+          "required": false
+        }
+      ]
+    },
+    "chat.group.members.list": {
+      "path": [
+        "chat",
+        "group",
+        "members",
+        "list"
+      ],
+      "description": "查看群成员列表",
+      "flags": [
+        {
+          "name": "cursor",
+          "short": null,
+          "type": "string",
+          "description": "分页游标，首次从 0 开始",
+          "required": false
+        },
+        {
+          "name": "id",
+          "short": null,
+          "type": "string",
+          "description": "群 ID / openconversation_id（必填）",
+          "required": true
+        }
+      ]
+    },
+    "chat.group.members.remove": {
+      "path": [
+        "chat",
+        "group",
+        "members",
+        "remove"
+      ],
+      "description": "从群中移除成员",
+      "flags": [
+        {
+          "name": "id",
+          "short": null,
+          "type": "string",
+          "description": "群 ID / openconversation_id（必填）",
+          "required": true
+        },
+        {
+          "name": "users",
+          "short": null,
+          "type": "string",
+          "description": "要移除的用户 userId 列表，逗号分隔（必填）",
+          "required": true
+        }
+      ]
+    },
+    "chat.group.members.remove-bot": {
+      "path": [
+        "chat",
+        "group",
+        "members",
+        "remove-bot"
+      ],
+      "description": "把机器人移出群。",
+      "flags": [
+        {
+          "name": "bot-id",
+          "short": null,
+          "type": "string",
+          "description": "群内机器人 ID（chat group bots 返回的 openBotId，必填）",
+          "required": true
+        },
+        {
+          "name": "id",
+          "short": null,
+          "type": "string",
+          "description": "群 openConversationId（必填）",
+          "required": true
+        }
+      ]
+    },
+    "chat.group.quit": {
+      "path": [
+        "chat",
+        "group",
+        "quit"
+      ],
+      "description": "退出群聊",
+      "flags": [
+        {
+          "name": "group",
+          "short": null,
+          "type": "string",
+          "description": "群/会话 openConversationId（必填）",
+          "required": true
+        }
+      ]
+    },
+    "chat.group.rename": {
+      "path": [
+        "chat",
+        "group",
+        "rename"
+      ],
+      "description": "更新群名称",
+      "flags": [
+        {
+          "name": "id",
+          "short": null,
+          "type": "string",
+          "description": "群 ID / openconversation_id（必填）",
+          "required": true
+        },
+        {
+          "name": "name",
+          "short": null,
+          "type": "string",
+          "description": "修改后的群名称（必填）",
+          "required": true
+        }
+      ]
+    },
+    "chat.group.set-admin": {
+      "path": [
+        "chat",
+        "group",
+        "set-admin"
+      ],
+      "description": "设置/取消群管理员",
+      "flags": [
+        {
+          "name": "group",
+          "short": null,
+          "type": "string",
+          "description": "群/会话 openConversationId（必填）",
+          "required": true
+        },
+        {
+          "name": "off",
+          "short": null,
+          "type": "bool",
+          "description": "传 --off 取消管理员（默认设为管理员）",
+          "required": false
+        },
+        {
+          "name": "users",
+          "short": null,
+          "type": "string",
+          "description": "目标成员 openDingTalkId 列表（必填，逗号分隔）",
+          "required": true
+        }
+      ]
+    },
+    "chat.group.set-history": {
+      "path": [
+        "chat",
+        "group",
+        "set-history"
+      ],
+      "description": "设置新成员入群可见历史消息策略。",
+      "flags": [
+        {
+          "name": "group",
+          "short": null,
+          "type": "string",
+          "description": "群 openConversationId（必填）",
+          "required": true
+        },
+        {
+          "name": "option",
+          "short": null,
+          "type": "string",
+          "description": "可见策略：FORBIDDEN=不可见 / RECENT_100=最近 100 条（普通账号无 ALL 权限）",
+          "required": false
+        }
+      ]
+    },
+    "chat.group.transfer-owner": {
+      "path": [
+        "chat",
+        "group",
+        "transfer-owner"
+      ],
+      "description": "转让群主",
+      "flags": [
+        {
+          "name": "group",
+          "short": null,
+          "type": "string",
+          "description": "群/会话 openConversationId（必填）",
+          "required": true
+        },
+        {
+          "name": "new-owner",
+          "short": null,
+          "type": "string",
+          "description": "新群主 openDingTalkId（必填）",
+          "required": true
+        }
+      ]
+    },
+    "chat.group.update-icon": {
+      "path": [
+        "chat",
+        "group",
+        "update-icon"
+      ],
+      "description": "更新群头像",
+      "flags": [
+        {
+          "name": "group",
+          "short": null,
+          "type": "string",
+          "description": "群/会话 openConversationId（必填）",
+          "required": true
+        },
+        {
+          "name": "icon-media-id",
+          "short": null,
+          "type": "string",
+          "description": "群头像 mediaId（必填，先用 media upload 上传获取）",
+          "required": true
+        }
+      ]
+    },
+    "chat.group.update-settings": {
+      "path": [
+        "chat",
+        "group",
+        "update-settings"
+      ],
+      "description": "更新群设置",
+      "flags": [
+        {
+          "name": "group",
+          "short": null,
+          "type": "string",
+          "description": "群/会话 openConversationId（必填）",
+          "required": true
+        },
+        {
+          "name": "setting-key",
+          "short": null,
+          "type": "string",
+          "description": "群设置项 key（必填，如 searchable / authority / groupLiveAuthority / groupBillAuthority 等）",
+          "required": true
+        },
+        {
+          "name": "status",
+          "short": null,
+          "type": "string",
+          "description": "设置项的值（必填，通常 0 关闭 / 1 开启，含义随 settingKey 变化）",
+          "required": true
+        }
+      ]
+    },
+    "chat.group-mute": {
+      "path": [
+        "chat",
+        "group-mute"
+      ],
+      "description": "群全员禁言",
+      "flags": [
+        {
+          "name": "group",
+          "short": null,
+          "type": "string",
+          "description": "群/会话 openConversationId（必填）",
+          "required": true
+        },
+        {
+          "name": "off",
+          "short": null,
+          "type": "bool",
+          "description": "传 --off 取消全员禁言（默认开启）",
+          "required": false
+        }
+      ]
+    },
+    "chat.group-mute-member": {
+      "path": [
+        "chat",
+        "group-mute-member"
+      ],
+      "description": "群成员禁言",
+      "flags": [
+        {
+          "name": "group",
+          "short": null,
+          "type": "string",
+          "description": "群/会话 openConversationId（必填）",
+          "required": true
+        },
+        {
+          "name": "mute-time",
+          "short": null,
+          "type": "int",
+          "description": "muteTime",
+          "required": false
+        },
+        {
+          "name": "off",
+          "short": null,
+          "type": "bool",
+          "description": "传 --off 移出禁言名单（默认加入）",
+          "required": false
+        },
+        {
+          "name": "users",
+          "short": null,
+          "type": "string",
+          "description": "被禁言成员 openDingTalkId 列表（必填，逗号分隔）",
+          "required": true
+        }
+      ]
+    },
+    "chat.list-categories": {
+      "path": [
+        "chat",
+        "list-categories"
+      ],
+      "description": "列出用户自定义会话分类",
+      "flags": []
+    },
+    "chat.list-conversations": {
+      "path": [
+        "chat",
+        "list-conversations"
+      ],
+      "description": "按分类拉取会话列表",
+      "flags": [
+        {
+          "name": "category-id",
+          "short": null,
+          "type": "string",
+          "description": "分类 ID（必填）",
+          "required": true
+        }
+      ]
+    },
+    "chat.list-top-conversations": {
+      "path": [
+        "chat",
+        "list-top-conversations"
+      ],
+      "description": "chat/list-top-conversations",
+      "flags": [
+        {
+          "name": "cursor",
+          "short": null,
+          "type": "string",
+          "description": "cursor",
+          "required": false
+        },
+        {
+          "name": "limit",
+          "short": null,
+          "type": "string",
+          "description": "limit",
+          "required": false
+        }
+      ]
+    },
+    "chat.message.add-emoji": {
+      "path": [
+        "chat",
+        "message",
+        "add-emoji"
+      ],
+      "description": "给消息添加表情回复",
+      "flags": [
+        {
+          "name": "emoji",
+          "short": null,
+          "type": "string",
+          "description": "表情名称（必填，系统表情编号或名称）",
+          "required": true
+        },
+        {
+          "name": "group",
+          "short": null,
+          "type": "string",
+          "description": "群/会话 openConversationId（必填）",
+          "required": true
+        },
+        {
+          "name": "msg-id",
+          "short": null,
+          "type": "string",
+          "description": "目标消息 openMessageId（必填）",
+          "required": true
+        }
+      ]
+    },
+    "chat.message.add-text-emotion": {
+      "path": [
+        "chat",
+        "message",
+        "add-text-emotion"
+      ],
+      "description": "添加文字表情",
+      "flags": [
+        {
+          "name": "background-id",
+          "short": null,
+          "type": "string",
+          "description": "背景 ID（必填）",
+          "required": true
+        },
+        {
+          "name": "emotion-id",
+          "short": null,
+          "type": "string",
+          "description": "文字表情 ID（必填，来自 create-text-emotion 返回）",
+          "required": true
+        },
+        {
+          "name": "emotion-name",
+          "short": null,
+          "type": "string",
+          "description": "文字表情名称（必填）",
+          "required": true
+        },
+        {
+          "name": "group",
+          "short": null,
+          "type": "string",
+          "description": "群/会话 openConversationId（必填）",
+          "required": true
+        },
+        {
+          "name": "msg-id",
+          "short": null,
+          "type": "string",
+          "description": "目标消息 openMessageId（必填）",
+          "required": true
+        },
+        {
+          "name": "text",
+          "short": null,
+          "type": "string",
+          "description": "文字内容（必填）",
+          "required": true
+        }
+      ]
+    },
+    "chat.message.combine-forward": {
+      "path": [
+        "chat",
+        "message",
+        "combine-forward"
+      ],
+      "description": "将一组消息合并转发到目标会话（合并转发卡片）。",
+      "flags": [
+        {
+          "name": "dest-conversation-id",
+          "short": null,
+          "type": "string",
+          "description": "目标会话 openConversationId（合并卡片送达此群，必填）",
+          "required": true
+        },
+        {
+          "name": "msg-ids",
+          "short": null,
+          "type": "string",
+          "description": "要合并的消息 openMessageId 列表（逗号分隔，必填）",
+          "required": true
+        },
+        {
+          "name": "src-conversation-id",
+          "short": null,
+          "type": "string",
+          "description": "源会话 openConversationId（消息所在群，必填）",
+          "required": true
+        },
+        {
+          "name": "uuid",
+          "short": null,
+          "type": "string",
+          "description": "幂等键（可选，重复 uuid 视为同一次操作）",
+          "required": false
+        }
+      ]
+    },
+    "chat.message.create-text-emotion": {
+      "path": [
+        "chat",
+        "message",
+        "create-text-emotion"
+      ],
+      "description": "创建文字表情",
+      "flags": [
+        {
+          "name": "background-id",
+          "short": null,
+          "type": "string",
+          "description": "背景 ID（可选）",
+          "required": false
+        },
+        {
+          "name": "emotion-name",
+          "short": null,
+          "type": "string",
+          "description": "文字表情名称（必填）",
+          "required": true
+        },
+        {
+          "name": "text",
+          "short": null,
+          "type": "string",
+          "description": "表情承载的文本内容（必填）",
+          "required": true
+        }
+      ]
+    },
+    "chat.message.forward": {
+      "path": [
+        "chat",
+        "message",
+        "forward"
+      ],
+      "description": "转发消息",
+      "flags": [
+        {
+          "name": "dest-conversation-id",
+          "short": null,
+          "type": "string",
+          "description": "目标会话 openConversationId（必填）",
+          "required": true
+        },
+        {
+          "name": "msg-id",
+          "short": null,
+          "type": "string",
+          "description": "源消息 openMessageId（必填）",
+          "required": true
+        },
+        {
+          "name": "src-conversation-id",
+          "short": null,
+          "type": "string",
+          "description": "源会话 openConversationId（必填）",
+          "required": true
+        }
+      ]
+    },
+    "chat.message.list": {
+      "path": [
+        "chat",
+        "message",
+        "list"
+      ],
+      "description": "chat/list",
+      "flags": [
+        {
+          "name": "forward",
+          "short": null,
+          "type": "forward",
+          "description": "(default true)",
+          "required": false
+        },
+        {
+          "name": "group",
+          "short": null,
+          "type": "string",
+          "description": "群会话 openconversationId（必填，**仅支持群聊**；查群 ID 用 dws chat search --query \"群名\"。如需查单聊消息请用 dws chat message list-direct --user <userId>）",
+          "required": true
+        },
+        {
+          "name": "limit",
+          "short": null,
+          "type": "int",
+          "description": "limit",
+          "required": false
+        },
+        {
+          "name": "time",
+          "short": null,
+          "type": "string",
+          "description": "time",
+          "required": false
+        }
+      ]
+    },
+    "chat.message.list-all": {
+      "path": [
+        "chat",
+        "message",
+        "list-all"
+      ],
+      "description": "按时间范围分页搜索历史消息，结果包含单聊和群聊（singleChat 字段区分）。若只关心某位同事的单聊，用 dws chat message list-direct --user <userId> 更直接。",
+      "flags": [
+        {
+          "name": "cursor",
+          "short": null,
+          "type": "string",
+          "description": "分页游标（首页传 \"0\"）",
+          "required": false
+        },
+        {
+          "name": "end",
+          "short": null,
+          "type": "string",
+          "description": "结束时间，格式 yyyy-MM-dd HH:mm:ss（必填）",
+          "required": true
+        },
+        {
+          "name": "limit",
+          "short": null,
+          "type": "int",
+          "description": "每页返回数量（默认 50）",
+          "required": false
+        },
+        {
+          "name": "start",
+          "short": null,
+          "type": "string",
+          "description": "起始时间，格式 yyyy-MM-dd HH:mm:ss（必填）",
+          "required": true
+        }
+      ]
+    },
+    "chat.message.list-by-ids": {
+      "path": [
+        "chat",
+        "message",
+        "list-by-ids"
+      ],
+      "description": "按消息 ID 列表批量获取消息",
+      "flags": [
+        {
+          "name": "msg-ids",
+          "short": null,
+          "type": "string",
+          "description": "消息 openMessageId 列表（必填，逗号分隔，最多 50 条）",
+          "required": true
+        }
+      ]
+    },
+    "chat.message.list-by-sender": {
+      "path": [
+        "chat",
+        "message",
+        "list-by-sender"
+      ],
+      "description": "拉取指定发送者的消息（含单聊 / 群聊；两者互斥）",
+      "flags": [
+        {
+          "name": "cursor",
+          "short": null,
+          "type": "string",
+          "description": "分页游标（默认 \"0\"，翻页传 nextCursor）",
+          "required": false
+        },
+        {
+          "name": "end",
+          "short": null,
+          "type": "string",
+          "description": "结束时间，ISO-8601 格式（必填）",
+          "required": true
+        },
+        {
+          "name": "limit",
+          "short": null,
+          "type": "int",
+          "description": "每页返回数量（默认 50）",
+          "required": false
+        },
+        {
+          "name": "sender-open-dingtalk-id",
+          "short": null,
+          "type": "string",
+          "description": "发送者 openDingTalkId（与 --sender-user-id 二选一）",
+          "required": false
+        },
+        {
+          "name": "sender-user-id",
+          "short": null,
+          "type": "string",
+          "description": "发送者 userId（与 --sender-open-dingtalk-id 二选一）",
+          "required": false
+        },
+        {
+          "name": "start",
+          "short": null,
+          "type": "string",
+          "description": "开始时间，ISO-8601 格式（必填）",
+          "required": true
+        }
+      ]
+    },
+    "chat.message.list-direct": {
+      "path": [
+        "chat",
+        "message",
+        "list-direct"
+      ],
+      "description": "按对方 userId 拉取单聊会话的消息（专用于私聊；查群聊请用 dws chat message list --group <openConversationId>）。",
+      "flags": [
+        {
+          "name": "forward",
+          "short": null,
+          "type": "bool",
+          "description": "true=从老往新，false=从新往老",
+          "required": false
+        },
+        {
+          "name": "limit",
+          "short": null,
+          "type": "int",
+          "description": "每页返回数量（默认 50）",
+          "required": false
+        },
+        {
+          "name": "open-dingtalk-id",
+          "short": null,
+          "type": "string",
+          "description": "对方 openDingTalkId（非同组织普通好友场景，与 --user 二选一）",
+          "required": false
+        },
+        {
+          "name": "time",
+          "short": null,
+          "type": "string",
+          "description": "开始时间，格式 yyyy-MM-dd HH:mm:ss（必填）",
+          "required": true
+        },
+        {
+          "name": "user",
+          "short": null,
+          "type": "string",
+          "description": "对方 userId（同组织内同事，与 --open-dingtalk-id 二选一）",
+          "required": false
+        }
+      ]
+    },
+    "chat.message.list-focused": {
+      "path": [
+        "chat",
+        "message",
+        "list-focused"
+      ],
+      "description": "拉取特别关注人的消息",
+      "flags": [
+        {
+          "name": "cursor",
+          "short": null,
+          "type": "int",
+          "description": "分页游标（首次不传或传 0）",
+          "required": false
+        },
+        {
+          "name": "limit",
+          "short": null,
+          "type": "int",
+          "description": "每页返回数量（默认 50）",
+          "required": false
+        }
+      ]
+    },
+    "chat.message.list-mentions": {
+      "path": [
+        "chat",
+        "message",
+        "list-mentions"
+      ],
+      "description": "拉取 @我 的消息",
+      "flags": [
+        {
+          "name": "cursor",
+          "short": null,
+          "type": "string",
+          "description": "分页游标（默认 \"0\"）",
+          "required": false
+        },
+        {
+          "name": "end",
+          "short": null,
+          "type": "string",
+          "description": "结束时间，ISO-8601 格式（必填）",
+          "required": true
+        },
+        {
+          "name": "group",
+          "short": null,
+          "type": "string",
+          "description": "群聊 openconversation_id（可选，不传则查全部）",
+          "required": false
+        },
+        {
+          "name": "limit",
+          "short": null,
+          "type": "int",
+          "description": "每页返回数量（默认 50）",
+          "required": false
+        },
+        {
+          "name": "start",
+          "short": null,
+          "type": "string",
+          "description": "开始时间，ISO-8601 格式（必填）",
+          "required": true
+        }
+      ]
+    },
+    "chat.message.list-topic-replies": {
+      "path": [
+        "chat",
+        "message",
+        "list-topic-replies"
+      ],
+      "description": "拉取群话题回复消息列表",
+      "flags": [
+        {
+          "name": "forward",
+          "short": null,
+          "type": "bool",
+          "description": "true=从老往新，false=从新往老（默认 false）",
+          "required": false
+        },
+        {
+          "name": "group",
+          "short": null,
+          "type": "string",
+          "description": "群会话 openconversationId（必填）",
+          "required": true
+        },
+        {
+          "name": "limit",
+          "short": null,
+          "type": "int",
+          "description": "返回数量（默认 50）",
+          "required": false
+        },
+        {
+          "name": "time",
+          "short": null,
+          "type": "string",
+          "description": "开始时间，格式 yyyy-MM-dd HH:mm:ss（可选）",
+          "required": false
+        },
+        {
+          "name": "topic-id",
+          "short": null,
+          "type": "string",
+          "description": "话题 ID（由 chat message list 返回，必填）",
+          "required": true
+        }
+      ]
+    },
+    "chat.message.list-unread-conversations": {
+      "path": [
+        "chat",
+        "message",
+        "list-unread-conversations"
+      ],
+      "description": "获取未读会话列表",
+      "flags": [
+        {
+          "name": "count",
+          "short": null,
+          "type": "int",
+          "description": "返回未读会话条数（可选，不传使用服务端默认）",
+          "required": false
+        }
+      ]
+    },
+    "chat.message.query-read-status": {
+      "path": [
+        "chat",
+        "message",
+        "query-read-status"
+      ],
+      "description": "查询消息已读状态",
+      "flags": [
+        {
+          "name": "group",
+          "short": null,
+          "type": "string",
+          "description": "群/会话 openConversationId（必填）",
+          "required": true
+        },
+        {
+          "name": "msg-id",
+          "short": null,
+          "type": "string",
+          "description": "消息 openMessageId（必填）",
+          "required": true
+        }
+      ]
+    },
+    "chat.message.query-send-status": {
+      "path": [
+        "chat",
+        "message",
+        "query-send-status"
+      ],
+      "description": "查询消息发送状态（按 openTaskId）",
+      "flags": [
+        {
+          "name": "open-task-id",
+          "short": null,
+          "type": "string",
+          "description": "消息任务 ID openTaskId（必填，来自 send-by-bot 返回值）",
+          "required": true
+        }
+      ]
+    },
+    "chat.message.recall": {
+      "path": [
+        "chat",
+        "message",
+        "recall"
+      ],
+      "description": "撤回单条消息",
+      "flags": [
+        {
+          "name": "group",
+          "short": null,
+          "type": "string",
+          "description": "群/会话 openConversationId（必填）",
+          "required": true
+        },
+        {
+          "name": "msg-id",
+          "short": null,
+          "type": "string",
+          "description": "消息 openMessageId（必填）",
+          "required": true
+        }
+      ]
+    },
+    "chat.message.recall-by-bot": {
+      "path": [
+        "chat",
+        "message",
+        "recall-by-bot"
+      ],
+      "description": "群聊撤回：传 --group 和 --keys；单聊撤回：只传 --keys。--keys 是逗号分隔的 processQueryKey 列表。",
+      "flags": [
+        {
+          "name": "group",
+          "short": null,
+          "type": "string",
+          "description": "群会话 openConversationId (群聊撤回必填)",
+          "required": true
+        },
+        {
+          "name": "keys",
+          "short": null,
+          "type": "string",
+          "description": "逗号分隔的消息 processQueryKey 列表 (必填)",
+          "required": true
+        },
+        {
+          "name": "robot-code",
+          "short": null,
+          "type": "string",
+          "description": "机器人 Code (必填)",
+          "required": true
+        }
+      ]
+    },
+    "chat.message.remove-emoji": {
+      "path": [
+        "chat",
+        "message",
+        "remove-emoji"
+      ],
+      "description": "移除消息表情回复",
+      "flags": [
+        {
+          "name": "emoji",
+          "short": null,
+          "type": "string",
+          "description": "要移除的表情名称（必填）",
+          "required": true
+        },
+        {
+          "name": "group",
+          "short": null,
+          "type": "string",
+          "description": "群/会话 openConversationId（必填）",
+          "required": true
+        },
+        {
+          "name": "msg-id",
+          "short": null,
+          "type": "string",
+          "description": "目标消息 openMessageId（必填）",
+          "required": true
+        }
+      ]
+    },
+    "chat.message.remove-text-emotion": {
+      "path": [
+        "chat",
+        "message",
+        "remove-text-emotion"
+      ],
+      "description": "移除文字表情",
+      "flags": [
+        {
+          "name": "background-id",
+          "short": null,
+          "type": "string",
+          "description": "背景 ID（必填）",
+          "required": true
+        },
+        {
+          "name": "emotion-id",
+          "short": null,
+          "type": "string",
+          "description": "文字表情 ID（必填）",
+          "required": true
+        },
+        {
+          "name": "emotion-name",
+          "short": null,
+          "type": "string",
+          "description": "文字表情名称（必填）",
+          "required": true
+        },
+        {
+          "name": "group",
+          "short": null,
+          "type": "string",
+          "description": "群/会话 openConversationId（必填）",
+          "required": true
+        },
+        {
+          "name": "msg-id",
+          "short": null,
+          "type": "string",
+          "description": "目标消息 openMessageId（必填）",
+          "required": true
+        },
+        {
+          "name": "text",
+          "short": null,
+          "type": "string",
+          "description": "文字内容（必填）",
+          "required": true
+        }
+      ]
+    },
+    "chat.message.reply": {
+      "path": [
+        "chat",
+        "message",
+        "reply"
+      ],
+      "description": "以当前用户身份引用某条消息并回复。需 --conversation-id 会话 ID、--ref-msg-id 被引用消息 ID、--ref-sender 原发送者 openDingTalkId、--text 回复内容。",
+      "flags": [
+        {
+          "name": "conversation-id",
+          "short": null,
+          "type": "string",
+          "description": "会话 openConversationId (必填，支持单聊/群聊)",
+          "required": true
+        },
+        {
+          "name": "ref-msg-id",
+          "short": null,
+          "type": "string",
+          "description": "被引用的消息 openMessageId (必填)",
+          "required": true
+        },
+        {
+          "name": "ref-sender",
+          "short": null,
+          "type": "string",
+          "description": "被引用消息发送者 openDingTalkId (必填)",
+          "required": true
+        },
+        {
+          "name": "text",
+          "short": null,
+          "type": "string",
+          "description": "回复正文 (必填)",
+          "required": true
+        },
+        {
+          "name": "uuid",
+          "short": null,
+          "type": "string",
+          "description": "可选 uuid（幂等标识）",
+          "required": false
+        }
+      ]
+    },
+    "chat.message.search": {
+      "path": [
+        "chat",
+        "message",
+        "search"
+      ],
+      "description": "按关键词搜索消息",
+      "flags": [
+        {
+          "name": "cursor",
+          "short": null,
+          "type": "string",
+          "description": "分页游标（默认 \"0\"）",
+          "required": false
+        },
+        {
+          "name": "end",
+          "short": null,
+          "type": "string",
+          "description": "结束时间，ISO-8601 格式（必填）",
+          "required": true
+        },
+        {
+          "name": "group",
+          "short": null,
+          "type": "string",
+          "description": "群聊 openconversation_id（可选，不传则搜索所有会话）",
+          "required": false
+        },
+        {
+          "name": "keyword",
+          "short": null,
+          "type": "string",
+          "description": "搜索关键词（必填）",
+          "required": true
+        },
+        {
+          "name": "limit",
+          "short": null,
+          "type": "int",
+          "description": "每页返回数量（默认 100）",
+          "required": false
+        },
+        {
+          "name": "start",
+          "short": null,
+          "type": "string",
+          "description": "开始时间，ISO-8601 格式（必填）",
+          "required": true
+        }
+      ]
+    },
+    "chat.message.search-advanced": {
+      "path": [
+        "chat",
+        "message",
+        "search-advanced"
+      ],
+      "description": "多维度搜索消息",
+      "flags": [
+        {
+          "name": "at-ids",
+          "short": null,
+          "type": "string",
+          "description": "atOpenDingTakIds",
+          "required": false
+        },
+        {
+          "name": "at-me",
+          "short": null,
+          "type": "bool",
+          "description": "atMe",
+          "required": false
+        },
+        {
+          "name": "conversation-ids",
+          "short": null,
+          "type": "string",
+          "description": "openConversationIds",
+          "required": false
+        },
+        {
+          "name": "cursor",
+          "short": null,
+          "type": "string",
+          "description": "cursor",
+          "required": false
+        },
+        {
+          "name": "end",
+          "short": null,
+          "type": "string",
+          "description": "endTime",
+          "required": false
+        },
+        {
+          "name": "keyword",
+          "short": null,
+          "type": "string",
+          "description": "keyword",
+          "required": false
+        },
+        {
+          "name": "limit",
+          "short": null,
+          "type": "int",
+          "description": "limit",
+          "required": false
+        },
+        {
+          "name": "sender-ids",
+          "short": null,
+          "type": "string",
+          "description": "senderOpenDingTakIds",
+          "required": false
+        },
+        {
+          "name": "start",
+          "short": null,
+          "type": "string",
+          "description": "startTime",
+          "required": false
+        }
+      ]
+    },
+    "chat.message.send": {
+      "path": [
+        "chat",
+        "message",
+        "send"
+      ],
+      "description": "以当前用户身份发送群消息或单聊消息。 --group 指定群聊 openConversationId 发群消息；--user 指定 userId 发单聊； --open-dingtalk-id 指定 openDingTalkId 发单聊 (适用于无法获取 userId 的场景)。 三者只能选其一，不能同时指定。 消息内容通过 --text 传入，也可作为位置参数；支持 Markdown。 --title 是消息标题，群聊与单聊都必填（API 强制要求；缺失时返回误导性的 \"发群服务窗会话消息失败\"）。 群聊场景下可用 --at-all / --at-users / --at-mobiles 进行 @ 提醒（仅 --group 时生效）。 注意 --text 中需包含对应的 <@userId> / <@all> 占位符才能在客户端渲染出 @ 效果。",
+      "flags": [
+        {
+          "name": "at-all",
+          "short": null,
+          "type": "bool",
+          "description": "@所有人 (仅 --group 群聊生效)",
+          "required": false
+        },
+        {
+          "name": "at-mobiles",
+          "short": null,
+          "type": "string",
+          "description": "按手机号 @ 指定成员，逗号分隔 (仅 --group 群聊生效)",
+          "required": false
+        },
+        {
+          "name": "at-users",
+          "short": null,
+          "type": "string",
+          "description": "按 userId @ 指定成员，逗号分隔 (仅 --group 群聊生效)",
+          "required": false
+        },
+        {
+          "name": "group",
+          "short": null,
+          "type": "string",
+          "description": "群会话 openConversationId (群聊三选一)",
+          "required": false
+        },
+        {
+          "name": "open-dingtalk-id",
+          "short": null,
+          "type": "string",
+          "description": "接收人 openDingTalkId (单聊三选一)",
+          "required": false
+        },
+        {
+          "name": "text",
+          "short": null,
+          "type": "string",
+          "description": "消息内容，支持 Markdown (也可作位置参数)",
+          "required": false
+        },
+        {
+          "name": "title",
+          "short": null,
+          "type": "string",
+          "description": "消息标题 (必填，群聊与单聊都必填)",
+          "required": true
+        },
+        {
+          "name": "user",
+          "short": null,
+          "type": "string",
+          "description": "接收人 userId (单聊三选一)",
+          "required": false
+        }
+      ]
+    },
+    "chat.message.send-by-bot": {
+      "path": [
+        "chat",
+        "message",
+        "send-by-bot"
+      ],
+      "description": "机器人发送消息（--group 群聊 / --users 单聊）",
+      "flags": [
+        {
+          "name": "group",
+          "short": null,
+          "type": "string",
+          "description": "群会话 openConversationId (群聊必填)",
+          "required": true
+        },
+        {
+          "name": "robot-code",
+          "short": null,
+          "type": "string",
+          "description": "机器人 Code (必填)",
+          "required": true
+        },
+        {
+          "name": "text",
+          "short": null,
+          "type": "string",
+          "description": "消息内容 Markdown (必填)",
+          "required": true
+        },
+        {
+          "name": "title",
+          "short": null,
+          "type": "string",
+          "description": "消息标题 (必填)",
+          "required": true
+        },
+        {
+          "name": "users",
+          "short": null,
+          "type": "string",
+          "description": "接收者 userId 列表，逗号分隔，最多 20 个 (单聊必填)",
+          "required": true
+        }
+      ]
+    },
+    "chat.message.send-by-webhook": {
+      "path": [
+        "chat",
+        "message",
+        "send-by-webhook"
+      ],
+      "description": "自定义机器人 Webhook 发送群消息。如需 @指定人，在 --text 中包含 @userId 或 @手机号。",
+      "flags": [
+        {
+          "name": "at-all",
+          "short": null,
+          "type": "bool",
+          "description": "@所有人",
+          "required": false
+        },
+        {
+          "name": "at-mobiles",
+          "short": null,
+          "type": "string",
+          "description": "按手机号 @，逗号分隔",
+          "required": false
+        },
+        {
+          "name": "at-users",
+          "short": null,
+          "type": "string",
+          "description": "按 userId @，逗号分隔",
+          "required": false
+        },
+        {
+          "name": "text",
+          "short": null,
+          "type": "string",
+          "description": "消息内容 (必填)",
+          "required": true
+        },
+        {
+          "name": "title",
+          "short": null,
+          "type": "string",
+          "description": "消息标题 (必填)",
+          "required": true
+        },
+        {
+          "name": "token",
+          "short": null,
+          "type": "string",
+          "description": "Webhook token (必填)",
+          "required": true
+        }
+      ]
+    },
+    "chat.message.send-card": {
+      "path": [
+        "chat",
+        "message",
+        "send-card"
+      ],
+      "description": "创建并发送卡片",
+      "flags": [
+        {
+          "name": "card-data",
+          "short": null,
+          "type": "string",
+          "description": "cardData",
+          "required": false
+        },
+        {
+          "name": "card-template-id",
+          "short": null,
+          "type": "string",
+          "description": "cardTemplateId",
+          "required": false
+        },
+        {
+          "name": "group",
+          "short": null,
+          "type": "string",
+          "description": "群/会话 openConversationId（必填）",
+          "required": true
+        },
+        {
+          "name": "user",
+          "short": null,
+          "type": "string",
+          "description": "openDingTalkId",
+          "required": false
+        }
+      ]
+    },
+    "chat.message.send-direct": {
+      "path": [
+        "chat",
+        "message",
+        "send-direct"
+      ],
+      "description": "按对方 userId 给同事发单聊消息（同组织内同事用 --user；非同组织好友用 --open-dingtalk-id）。如需群发请用 dws chat message send --group。",
+      "flags": [
+        {
+          "name": "claw-type",
+          "short": null,
+          "type": "string",
+          "description": "消息类型标记（一般不填，由后端默认值处理）",
+          "required": false
+        },
+        {
+          "name": "open-dingtalk-id",
+          "short": null,
+          "type": "string",
+          "description": "对方 openDingTalkId（非同组织普通好友场景，与 --user 二选一）",
+          "required": false
+        },
+        {
+          "name": "text",
+          "short": null,
+          "type": "string",
+          "description": "消息正文（必填，支持 Markdown）",
+          "required": true
+        },
+        {
+          "name": "title",
+          "short": null,
+          "type": "string",
+          "description": "消息标题（必填）",
+          "required": true
+        },
+        {
+          "name": "user",
+          "short": null,
+          "type": "string",
+          "description": "对方 userId（同组织内同事，与 --open-dingtalk-id 二选一）",
+          "required": false
+        }
+      ]
+    },
+    "chat.message.update-card": {
+      "path": [
+        "chat",
+        "message",
+        "update-card"
+      ],
+      "description": "更新流式卡片",
+      "flags": [
+        {
+          "name": "biz-id",
+          "short": null,
+          "type": "string",
+          "description": "流式卡片业务 ID（必填，来自 send-card 返回的 bizId）",
+          "required": true
+        },
+        {
+          "name": "content",
+          "short": null,
+          "type": "string",
+          "description": "卡片更新后的内容文本（必填）",
+          "required": true
+        },
+        {
+          "name": "flow-status",
+          "short": null,
+          "type": "int",
+          "description": "flowStatus",
+          "required": false
+        }
+      ]
+    },
+    "chat.mute": {
+      "path": [
+        "chat",
+        "mute"
+      ],
+      "description": "会话消息免打扰（开启/关闭）",
+      "flags": [
+        {
+          "name": "group",
+          "short": null,
+          "type": "string",
+          "description": "群/会话 openConversationId（必填）",
+          "required": true
+        },
+        {
+          "name": "off",
+          "short": null,
+          "type": "bool",
+          "description": "传 --off 关闭免打扰（默认开启）",
+          "required": false
+        }
+      ]
+    },
+    "chat.search": {
+      "path": [
+        "chat",
+        "search"
+      ],
+      "description": "根据关键词搜索群聊（im 新版）",
+      "flags": [
+        {
+          "name": "cursor",
+          "short": null,
+          "type": "string",
+          "description": "分页游标",
+          "required": false
+        },
+        {
+          "name": "keyword",
+          "short": null,
+          "type": "string",
+          "description": "搜索关键词（必填）",
+          "required": true
+        },
+        {
+          "name": "limit",
+          "short": null,
+          "type": "int",
+          "description": "每页返回数量",
+          "required": false
+        }
+      ]
+    },
+    "chat.search-common": {
+      "path": [
+        "chat",
+        "search-common"
+      ],
+      "description": "搜索共同群（指定昵称列表，查询共同所在的群聊）",
+      "flags": [
+        {
+          "name": "cursor",
+          "short": null,
+          "type": "string",
+          "description": "分页游标（默认 \"0\"）",
+          "required": false
+        },
+        {
+          "name": "limit",
+          "short": null,
+          "type": "int",
+          "description": "每页返回数量（默认 20）",
+          "required": false
+        },
+        {
+          "name": "match-mode",
+          "short": null,
+          "type": "string",
+          "description": "匹配模式：AND=所有人都在群里，OR=任一人在群里",
+          "required": false
+        },
+        {
+          "name": "nicks",
+          "short": null,
+          "type": "string",
+          "description": "要搜索的昵称列表，逗号分隔（必填）",
+          "required": true
+        }
+      ]
+    },
+    "chat.set-top": {
+      "path": [
+        "chat",
+        "set-top"
+      ],
+      "description": "会话置顶（开启/关闭）",
+      "flags": [
+        {
+          "name": "group",
+          "short": null,
+          "type": "string",
+          "description": "群/会话 openConversationId（必填）",
+          "required": true
+        },
+        {
+          "name": "off",
+          "short": null,
+          "type": "bool",
+          "description": "传 --off 取消置顶（默认置顶）",
+          "required": false
+        }
+      ]
+    },
+    "contact.dept.list-members": {
+      "path": [
+        "contact",
+        "dept",
+        "list-members"
+      ],
+      "description": "查看部门成员（逗号分隔 deptId）",
+      "flags": [
+        {
+          "name": "ids",
+          "short": null,
+          "type": "string",
+          "description": "部门 ID 列表，逗号分隔",
+          "required": false
+        }
+      ]
+    },
+    "contact.dept.search": {
+      "path": [
+        "contact",
+        "dept",
+        "search"
+      ],
+      "description": "按关键词搜索部门",
+      "flags": [
+        {
+          "name": "query",
+          "short": null,
+          "type": "string",
+          "description": "搜索关键词",
+          "required": false
+        }
+      ]
+    },
+    "contact.search": {
+      "path": [
+        "contact",
+        "search"
+      ],
+      "description": "Please use: dws contact user search",
+      "flags": []
+    },
+    "contact.user.get": {
+      "path": [
+        "contact",
+        "user",
+        "get"
+      ],
+      "description": "批量获取用户详情（逗号分隔 userId）",
+      "flags": [
+        {
+          "name": "ids",
+          "short": null,
+          "type": "string",
+          "description": "用户 userId 列表，逗号分隔",
+          "required": false
+        }
+      ]
+    },
+    "contact.user.get-self": {
+      "path": [
+        "contact",
+        "user",
+        "get-self"
+      ],
+      "description": "获取当前用户信息",
+      "flags": []
+    },
+    "contact.user.search": {
+      "path": [
+        "contact",
+        "user",
+        "search"
+      ],
+      "description": "按关键词搜索用户",
+      "flags": [
+        {
+          "name": "query",
+          "short": null,
+          "type": "string",
+          "description": "搜索关键词",
+          "required": false
+        }
+      ]
+    },
+    "contact.user.search-mobile": {
+      "path": [
+        "contact",
+        "user",
+        "search-mobile"
+      ],
+      "description": "按手机号搜索用户",
+      "flags": [
+        {
+          "name": "mobile",
+          "short": null,
+          "type": "string",
+          "description": "手机号",
+          "required": false
+        }
+      ]
+    },
+    "devdoc.article.search": {
+      "path": [
+        "devdoc",
+        "article",
+        "search"
+      ],
+      "description": "devdoc/search",
+      "flags": [
+        {
+          "name": "page",
+          "short": null,
+          "type": "string",
+          "description": "page",
+          "required": false
+        },
+        {
+          "name": "query",
+          "short": null,
+          "type": "string",
+          "description": "keyword",
+          "required": false
+        },
+        {
+          "name": "size",
+          "short": null,
+          "type": "string",
+          "description": "size",
+          "required": false
+        }
+      ]
+    },
+    "ding.message.recall": {
+      "path": [
+        "ding",
+        "message",
+        "recall"
+      ],
+      "description": "ding/recall",
+      "flags": [
+        {
+          "name": "id",
+          "short": null,
+          "type": "string",
+          "description": "openDingId",
+          "required": false
+        },
+        {
+          "name": "robot-code",
+          "short": null,
+          "type": "string",
+          "description": "robotCode",
+          "required": false
+        }
+      ]
+    },
+    "ding.message.send": {
+      "path": [
+        "ding",
+        "message",
+        "send"
+      ],
+      "description": "ding/send",
+      "flags": [
+        {
+          "name": "content",
+          "short": null,
+          "type": "string",
+          "description": "content",
+          "required": false
+        },
+        {
+          "name": "robot-code",
+          "short": null,
+          "type": "string",
+          "description": "robotCode",
+          "required": false
+        },
+        {
+          "name": "type",
+          "short": null,
+          "type": "string",
+          "description": "remindType",
+          "required": false
+        },
+        {
+          "name": "users",
+          "short": null,
+          "type": "string",
+          "description": "receiverUserIdList",
+          "required": false
+        }
+      ]
+    },
+    "doc.block.delete": {
+      "path": [
+        "doc",
+        "block",
+        "delete"
+      ],
+      "description": "doc/delete",
+      "flags": [
+        {
+          "name": "block-id",
+          "short": null,
+          "type": "string",
+          "description": "blockId",
+          "required": false
+        },
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "nodeId",
+          "required": false
+        }
+      ]
+    },
+    "doc.block.insert": {
+      "path": [
+        "doc",
+        "block",
+        "insert"
+      ],
+      "description": "doc/insert",
+      "flags": [
+        {
+          "name": "element",
+          "short": null,
+          "type": "string",
+          "description": "element",
+          "required": false
+        },
+        {
+          "name": "index",
+          "short": null,
+          "type": "string",
+          "description": "index",
+          "required": false
+        },
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "nodeId",
+          "required": false
+        },
+        {
+          "name": "ref-block",
+          "short": null,
+          "type": "string",
+          "description": "referenceBlockId",
+          "required": false
+        },
+        {
+          "name": "where",
+          "short": null,
+          "type": "string",
+          "description": "where",
+          "required": false
+        }
+      ]
+    },
+    "doc.block.list": {
+      "path": [
+        "doc",
+        "block",
+        "list"
+      ],
+      "description": "doc/list",
+      "flags": [
+        {
+          "name": "block-type",
+          "short": null,
+          "type": "string",
+          "description": "blockType",
+          "required": false
+        },
+        {
+          "name": "end-index",
+          "short": null,
+          "type": "string",
+          "description": "endIndex",
+          "required": false
+        },
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "nodeId",
+          "required": false
+        },
+        {
+          "name": "start-index",
+          "short": null,
+          "type": "string",
+          "description": "startIndex",
+          "required": false
+        }
+      ]
+    },
+    "doc.block.update": {
+      "path": [
+        "doc",
+        "block",
+        "update"
+      ],
+      "description": "doc/update",
+      "flags": [
+        {
+          "name": "block-id",
+          "short": null,
+          "type": "string",
+          "description": "blockId",
+          "required": false
+        },
+        {
+          "name": "element",
+          "short": null,
+          "type": "string",
+          "description": "element",
+          "required": false
+        },
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "nodeId",
+          "required": false
+        }
+      ]
+    },
+    "doc.comment.create": {
+      "path": [
+        "doc",
+        "comment",
+        "create"
+      ],
+      "description": "doc/create",
+      "flags": [
+        {
+          "name": "content",
+          "short": null,
+          "type": "string",
+          "description": "content",
+          "required": false
+        },
+        {
+          "name": "mention",
+          "short": null,
+          "type": "string",
+          "description": "mentionedUserIds",
+          "required": false
+        },
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "nodeId",
+          "required": false
+        }
+      ]
+    },
+    "doc.comment.create-inline": {
+      "path": [
+        "doc",
+        "comment",
+        "create-inline"
+      ],
+      "description": "doc/create-inline",
+      "flags": [
+        {
+          "name": "block-id",
+          "short": null,
+          "type": "string",
+          "description": "blockId",
+          "required": false
+        },
+        {
+          "name": "content",
+          "short": null,
+          "type": "string",
+          "description": "content",
+          "required": false
+        },
+        {
+          "name": "end",
+          "short": null,
+          "type": "string",
+          "description": "end",
+          "required": false
+        },
+        {
+          "name": "mention",
+          "short": null,
+          "type": "string",
+          "description": "mentionedUserIds",
+          "required": false
+        },
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "nodeId",
+          "required": false
+        },
+        {
+          "name": "selected-text",
+          "short": null,
+          "type": "string",
+          "description": "selectedText",
+          "required": false
+        },
+        {
+          "name": "start",
+          "short": null,
+          "type": "string",
+          "description": "start",
+          "required": false
+        }
+      ]
+    },
+    "doc.comment.list": {
+      "path": [
+        "doc",
+        "comment",
+        "list"
+      ],
+      "description": "doc/list",
+      "flags": [
+        {
+          "name": "next-token",
+          "short": null,
+          "type": "string",
+          "description": "nextToken",
+          "required": false
+        },
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "nodeId",
+          "required": false
+        },
+        {
+          "name": "page-size",
+          "short": null,
+          "type": "string",
+          "description": "pageSize",
+          "required": false
+        },
+        {
+          "name": "resolve-status",
+          "short": null,
+          "type": "string",
+          "description": "resolveStatus",
+          "required": false
+        },
+        {
+          "name": "type",
+          "short": null,
+          "type": "string",
+          "description": "commentType",
+          "required": false
+        }
+      ]
+    },
+    "doc.comment.reply": {
+      "path": [
+        "doc",
+        "comment",
+        "reply"
+      ],
+      "description": "doc/reply",
+      "flags": [
+        {
+          "name": "comment-key",
+          "short": null,
+          "type": "string",
+          "description": "replyCommentKey",
+          "required": false
+        },
+        {
+          "name": "content",
+          "short": null,
+          "type": "string",
+          "description": "content",
+          "required": false
+        },
+        {
+          "name": "emoji",
+          "short": null,
+          "type": "string",
+          "description": "emoji",
+          "required": false
+        },
+        {
+          "name": "mention",
+          "short": null,
+          "type": "string",
+          "description": "mentionedUserIds",
+          "required": false
+        },
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "nodeId",
+          "required": false
+        }
+      ]
+    },
+    "doc.copy": {
+      "path": [
+        "doc",
+        "copy"
+      ],
+      "description": "doc/copy",
+      "flags": [
+        {
+          "name": "folder",
+          "short": null,
+          "type": "string",
+          "description": "targetFolderId",
+          "required": false
+        },
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "nodeId",
+          "required": false
+        },
+        {
+          "name": "workspace",
+          "short": null,
+          "type": "string",
+          "description": "workspaceId",
+          "required": false
+        }
+      ]
+    },
+    "doc.create": {
+      "path": [
+        "doc",
+        "create"
+      ],
+      "description": "doc/create",
+      "flags": [
+        {
+          "name": "folder",
+          "short": null,
+          "type": "string",
+          "description": "folderId",
+          "required": false
+        },
+        {
+          "name": "markdown",
+          "short": null,
+          "type": "string",
+          "description": "markdown",
+          "required": false
+        },
+        {
+          "name": "name",
+          "short": null,
+          "type": "string",
+          "description": "name",
+          "required": false
+        },
+        {
+          "name": "workspace",
+          "short": null,
+          "type": "string",
+          "description": "workspaceId",
+          "required": false
+        }
+      ]
+    },
+    "doc.download": {
+      "path": [
+        "doc",
+        "download"
+      ],
+      "description": "doc/download",
+      "flags": [
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "nodeId",
+          "required": false
+        }
+      ]
+    },
+    "doc.file.create": {
+      "path": [
+        "doc",
+        "file",
+        "create"
+      ],
+      "description": "doc/create",
+      "flags": [
+        {
+          "name": "folder",
+          "short": null,
+          "type": "string",
+          "description": "folderId",
+          "required": false
+        },
+        {
+          "name": "name",
+          "short": null,
+          "type": "string",
+          "description": "name",
+          "required": false
+        },
+        {
+          "name": "type",
+          "short": null,
+          "type": "string",
+          "description": "type",
+          "required": false
+        },
+        {
+          "name": "workspace",
+          "short": null,
+          "type": "string",
+          "description": "workspaceId",
+          "required": false
+        }
+      ]
+    },
+    "doc.folder.create": {
+      "path": [
+        "doc",
+        "folder",
+        "create"
+      ],
+      "description": "doc/create",
+      "flags": [
+        {
+          "name": "folder",
+          "short": null,
+          "type": "string",
+          "description": "folderId",
+          "required": false
+        },
+        {
+          "name": "name",
+          "short": null,
+          "type": "string",
+          "description": "name",
+          "required": false
+        },
+        {
+          "name": "workspace",
+          "short": null,
+          "type": "string",
+          "description": "workspaceId",
+          "required": false
+        }
+      ]
+    },
+    "doc.info": {
+      "path": [
+        "doc",
+        "info"
+      ],
+      "description": "doc/info",
+      "flags": [
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "nodeId",
+          "required": false
+        }
+      ]
+    },
+    "doc.list": {
+      "path": [
+        "doc",
+        "list"
+      ],
+      "description": "doc/list",
+      "flags": [
+        {
+          "name": "folder",
+          "short": null,
+          "type": "string",
+          "description": "folderId",
+          "required": false
+        },
+        {
+          "name": "page-size",
+          "short": null,
+          "type": "string",
+          "description": "pageSize",
+          "required": false
+        },
+        {
+          "name": "page-token",
+          "short": null,
+          "type": "string",
+          "description": "pageToken",
+          "required": false
+        },
+        {
+          "name": "workspace",
+          "short": null,
+          "type": "string",
+          "description": "workspaceId",
+          "required": false
+        }
+      ]
+    },
+    "doc.move": {
+      "path": [
+        "doc",
+        "move"
+      ],
+      "description": "doc/move",
+      "flags": [
+        {
+          "name": "folder",
+          "short": null,
+          "type": "string",
+          "description": "targetFolderId",
+          "required": false
+        },
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "nodeId",
+          "required": false
+        },
+        {
+          "name": "workspace",
+          "short": null,
+          "type": "string",
+          "description": "workspaceId",
+          "required": false
+        }
+      ]
+    },
+    "doc.read": {
+      "path": [
+        "doc",
+        "read"
+      ],
+      "description": "doc/read",
+      "flags": [
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "nodeId",
+          "required": false
+        }
+      ]
+    },
+    "doc.rename": {
+      "path": [
+        "doc",
+        "rename"
+      ],
+      "description": "doc/rename",
+      "flags": [
+        {
+          "name": "name",
+          "short": null,
+          "type": "string",
+          "description": "newName",
+          "required": false
+        },
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "nodeId",
+          "required": false
+        }
+      ]
+    },
+    "doc.search": {
+      "path": [
+        "doc",
+        "search"
+      ],
+      "description": "doc/search",
+      "flags": [
+        {
+          "name": "created-from",
+          "short": null,
+          "type": "string",
+          "description": "createdTimeFrom",
+          "required": false
+        },
+        {
+          "name": "created-to",
+          "short": null,
+          "type": "string",
+          "description": "createdTimeTo",
+          "required": false
+        },
+        {
+          "name": "creator-uids",
+          "short": null,
+          "type": "string",
+          "description": "creatorUserIds",
+          "required": false
+        },
+        {
+          "name": "editor-uids",
+          "short": null,
+          "type": "string",
+          "description": "editorUserIds",
+          "required": false
+        },
+        {
+          "name": "extensions",
+          "short": null,
+          "type": "string",
+          "description": "extensions",
+          "required": false
+        },
+        {
+          "name": "mentioned-uids",
+          "short": null,
+          "type": "string",
+          "description": "mentionedUserIds",
+          "required": false
+        },
+        {
+          "name": "page-size",
+          "short": null,
+          "type": "string",
+          "description": "pageSize",
+          "required": false
+        },
+        {
+          "name": "page-token",
+          "short": null,
+          "type": "string",
+          "description": "pageToken",
+          "required": false
+        },
+        {
+          "name": "query",
+          "short": null,
+          "type": "string",
+          "description": "keyword",
+          "required": false
+        },
+        {
+          "name": "visited-from",
+          "short": null,
+          "type": "string",
+          "description": "visitedTimeFrom",
+          "required": false
+        },
+        {
+          "name": "visited-to",
+          "short": null,
+          "type": "string",
+          "description": "visitedTimeTo",
+          "required": false
+        },
+        {
+          "name": "workspace-ids",
+          "short": null,
+          "type": "string",
+          "description": "workspaceIds",
+          "required": false
+        }
+      ]
+    },
+    "doc.update": {
+      "path": [
+        "doc",
+        "update"
+      ],
+      "description": "doc/update",
+      "flags": [
+        {
+          "name": "content",
+          "short": null,
+          "type": "string",
+          "description": "文档内容（字面量 Markdown）。短文本或 stdin 拼接友好；长文请改用 --content-file。",
+          "required": false
+        },
+        {
+          "name": "content-file",
+          "short": null,
+          "type": "bool",
+          "description": "-   从本地文件读 Markdown 内容（路径或 - 表示 stdin）。适合长文、多行、表格。",
+          "required": false
+        },
+        {
+          "name": "mode",
+          "short": null,
+          "type": "string",
+          "description": "mode",
+          "required": false
+        },
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "nodeId",
+          "required": false
+        }
+      ]
+    },
+    "doc.upload": {
+      "path": [
+        "doc",
+        "upload"
+      ],
+      "description": "doc/upload",
+      "flags": [
+        {
+          "name": "folder",
+          "short": null,
+          "type": "string",
+          "description": "folderId",
+          "required": false
+        },
+        {
+          "name": "workspace",
+          "short": null,
+          "type": "string",
+          "description": "workspaceId",
+          "required": false
+        }
+      ]
+    },
+    "doc-comment.create-comment": {
+      "path": [
+        "doc-comment",
+        "create-comment"
+      ],
+      "description": "创建文档评论",
+      "flags": []
+    },
+    "doc-comment.create-inline-comment": {
+      "path": [
+        "doc-comment",
+        "create-inline-comment"
+      ],
+      "description": "创建文档行内评论",
+      "flags": []
+    },
+    "doc-comment.list-comments": {
+      "path": [
+        "doc-comment",
+        "list-comments"
+      ],
+      "description": "查询文档评论列表",
+      "flags": []
+    },
+    "doc-comment.reply-comment": {
+      "path": [
+        "doc-comment",
+        "reply-comment"
+      ],
+      "description": "回复文档评论",
+      "flags": []
+    },
+    "drive.commit": {
+      "path": [
+        "drive",
+        "commit"
+      ],
+      "description": "drive/commit",
+      "flags": [
+        {
+          "name": "conflict-handler",
+          "short": null,
+          "type": "string",
+          "description": "conflictHandler",
+          "required": false
+        },
+        {
+          "name": "file-name",
+          "short": null,
+          "type": "string",
+          "description": "fileName",
+          "required": false
+        },
+        {
+          "name": "file-size",
+          "short": null,
+          "type": "string",
+          "description": "fileSize",
+          "required": false
+        },
+        {
+          "name": "parent-id",
+          "short": null,
+          "type": "string",
+          "description": "parentId",
+          "required": false
+        },
+        {
+          "name": "space-id",
+          "short": null,
+          "type": "string",
+          "description": "spaceId",
+          "required": false
+        },
+        {
+          "name": "upload-id",
+          "short": null,
+          "type": "string",
+          "description": "uploadId",
+          "required": false
+        }
+      ]
+    },
+    "drive.delete": {
+      "path": [
+        "drive",
+        "delete"
+      ],
+      "description": "drive/delete",
+      "flags": [
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "nodeId",
+          "required": false
+        }
+      ]
+    },
+    "drive.download": {
+      "path": [
+        "drive",
+        "download"
+      ],
+      "description": "drive/download",
+      "flags": [
+        {
+          "name": "file-id",
+          "short": null,
+          "type": "string",
+          "description": "fileId",
+          "required": false
+        },
+        {
+          "name": "space-id",
+          "short": null,
+          "type": "string",
+          "description": "spaceId",
+          "required": false
+        }
+      ]
+    },
+    "drive.info": {
+      "path": [
+        "drive",
+        "info"
+      ],
+      "description": "drive/info",
+      "flags": [
+        {
+          "name": "file-id",
+          "short": null,
+          "type": "string",
+          "description": "fileId",
+          "required": false
+        },
+        {
+          "name": "space-id",
+          "short": null,
+          "type": "string",
+          "description": "spaceId",
+          "required": false
+        }
+      ]
+    },
+    "drive.list": {
+      "path": [
+        "drive",
+        "list"
+      ],
+      "description": "drive/list",
+      "flags": [
+        {
+          "name": "max",
+          "short": null,
+          "type": "string",
+          "description": "maxResults",
+          "required": false
+        },
+        {
+          "name": "next-token",
+          "short": null,
+          "type": "string",
+          "description": "nextToken",
+          "required": false
+        },
+        {
+          "name": "order",
+          "short": null,
+          "type": "string",
+          "description": "order",
+          "required": false
+        },
+        {
+          "name": "order-by",
+          "short": null,
+          "type": "string",
+          "description": "orderBy",
+          "required": false
+        },
+        {
+          "name": "parent-id",
+          "short": null,
+          "type": "string",
+          "description": "parentId",
+          "required": false
+        },
+        {
+          "name": "space-id",
+          "short": null,
+          "type": "string",
+          "description": "spaceId",
+          "required": false
+        },
+        {
+          "name": "thumbnail",
+          "short": null,
+          "type": "string",
+          "description": "withThumbnail",
+          "required": false
+        }
+      ]
+    },
+    "drive.list-spaces": {
+      "path": [
+        "drive",
+        "list-spaces"
+      ],
+      "description": "drive/list-spaces",
+      "flags": [
+        {
+          "name": "cursor",
+          "short": null,
+          "type": "string",
+          "description": "nextToken",
+          "required": false
+        },
+        {
+          "name": "max",
+          "short": null,
+          "type": "string",
+          "description": "maxResults",
+          "required": false
+        },
+        {
+          "name": "space-type",
+          "short": null,
+          "type": "string",
+          "description": "spaceType",
+          "required": false
+        }
+      ]
+    },
+    "drive.mkdir": {
+      "path": [
+        "drive",
+        "mkdir"
+      ],
+      "description": "drive/mkdir",
+      "flags": [
+        {
+          "name": "name",
+          "short": null,
+          "type": "string",
+          "description": "name",
+          "required": false
+        },
+        {
+          "name": "parent-id",
+          "short": null,
+          "type": "string",
+          "description": "parentId",
+          "required": false
+        },
+        {
+          "name": "space-id",
+          "short": null,
+          "type": "string",
+          "description": "spaceId",
+          "required": false
+        }
+      ]
+    },
+    "drive.upload": {
+      "path": [
+        "drive",
+        "upload"
+      ],
+      "description": "将本地文件上传到钉盘（三步自动完成）： 1. drive get_upload_info → 获取 OSS 上传凭证 (resourceUrl + uploadId + headers) 2. HTTP PUT 文件二进制 → OSS 3. drive commit_upload → 提交文件入库 --folder 指定父目录 dentryUuid，不传则上传到空间根目录。",
+      "flags": [
+        {
+          "name": "file",
+          "short": null,
+          "type": "string",
+          "description": "本地文件路径 (必填)",
+          "required": true
+        },
+        {
+          "name": "file-name",
+          "short": null,
+          "type": "string",
+          "description": "文件显示名称 (默认使用文件名)",
+          "required": false
+        },
+        {
+          "name": "folder",
+          "short": null,
+          "type": "string",
+          "description": "父节点 ID (dentryUuid)，不传则上传到空间根目录",
+          "required": false
+        },
+        {
+          "name": "mime-type",
+          "short": null,
+          "type": "string",
+          "description": "文件 MIME 类型，不传则自动推断",
+          "required": false
+        },
+        {
+          "name": "space-id",
+          "short": null,
+          "type": "string",
+          "description": "目标空间 ID，不传则使用「我的文件」",
+          "required": false
+        }
+      ]
+    },
+    "drive.upload-info": {
+      "path": [
+        "drive",
+        "upload-info"
+      ],
+      "description": "drive/upload-info",
+      "flags": [
+        {
+          "name": "file-name",
+          "short": null,
+          "type": "string",
+          "description": "fileName",
+          "required": false
+        },
+        {
+          "name": "file-size",
+          "short": null,
+          "type": "string",
+          "description": "fileSize",
+          "required": false
+        },
+        {
+          "name": "mime-type",
+          "short": null,
+          "type": "string",
+          "description": "mimeType",
+          "required": false
+        },
+        {
+          "name": "parent-id",
+          "short": null,
+          "type": "string",
+          "description": "parentId",
+          "required": false
+        },
+        {
+          "name": "space-id",
+          "short": null,
+          "type": "string",
+          "description": "spaceId",
+          "required": false
+        }
+      ]
+    },
+    "live.list": {
+      "path": [
+        "live",
+        "list"
+      ],
+      "description": "Please use: dws live stream list",
+      "flags": []
+    },
+    "live.stream.list": {
+      "path": [
+        "live",
+        "stream",
+        "list"
+      ],
+      "description": "查看我的直播列表",
+      "flags": []
+    },
+    "mail.mailbox.list": {
+      "path": [
+        "mail",
+        "mailbox",
+        "list"
+      ],
+      "description": "查询可用邮箱地址",
+      "flags": []
+    },
+    "mail.message.get": {
+      "path": [
+        "mail",
+        "message",
+        "get"
+      ],
+      "description": "查看邮件完整内容",
+      "flags": [
+        {
+          "name": "email",
+          "short": null,
+          "type": "string",
+          "description": "邮件所属邮箱地址 (必填)",
+          "required": true
+        },
+        {
+          "name": "id",
+          "short": null,
+          "type": "string",
+          "description": "邮件 ID (必填)",
+          "required": true
+        }
+      ]
+    },
+    "mail.message.search": {
+      "path": [
+        "mail",
+        "message",
+        "search"
+      ],
+      "description": "搜索邮件 (KQL 语法)",
+      "flags": [
+        {
+          "name": "cursor",
+          "short": null,
+          "type": "string",
+          "description": "分页游标 (首页留空)",
+          "required": false
+        },
+        {
+          "name": "email",
+          "short": null,
+          "type": "string",
+          "description": "搜索目标邮箱地址 (必填)",
+          "required": true
+        },
+        {
+          "name": "query",
+          "short": null,
+          "type": "string",
+          "description": "KQL 查询表达式 (必填)",
+          "required": true
+        },
+        {
+          "name": "size",
+          "short": null,
+          "type": "string",
+          "description": "每页返回数量 1-100 (默认 20)",
+          "required": false
+        }
+      ]
+    },
+    "mail.message.send": {
+      "path": [
+        "mail",
+        "message",
+        "send"
+      ],
+      "description": "发送邮件",
+      "flags": [
+        {
+          "name": "body",
+          "short": null,
+          "type": "string",
+          "description": "邮件正文 (必填)",
+          "required": true
+        },
+        {
+          "name": "cc",
+          "short": null,
+          "type": "string",
+          "description": "抄送人列表，逗号分隔 (可选)",
+          "required": false
+        },
+        {
+          "name": "from",
+          "short": null,
+          "type": "string",
+          "description": "发件人邮箱 (必填)",
+          "required": true
+        },
+        {
+          "name": "subject",
+          "short": null,
+          "type": "string",
+          "description": "邮件标题 (必填)",
+          "required": true
+        },
+        {
+          "name": "to",
+          "short": null,
+          "type": "string",
+          "description": "收件人列表，逗号分隔 (必填)",
+          "required": true
+        }
+      ]
+    },
+    "minutes.get.batch": {
+      "path": [
+        "minutes",
+        "get",
+        "batch"
+      ],
+      "description": "minutes/batch",
+      "flags": [
+        {
+          "name": "ids",
+          "short": null,
+          "type": "string",
+          "description": "requestBody.taskUuids",
+          "required": false
+        }
+      ]
+    },
+    "minutes.get.info": {
+      "path": [
+        "minutes",
+        "get",
+        "info"
+      ],
+      "description": "minutes/info",
+      "flags": [
+        {
+          "name": "id",
+          "short": null,
+          "type": "string",
+          "description": "taskUuid",
+          "required": false
+        }
+      ]
+    },
+    "minutes.get.keywords": {
+      "path": [
+        "minutes",
+        "get",
+        "keywords"
+      ],
+      "description": "minutes/keywords",
+      "flags": [
+        {
+          "name": "id",
+          "short": null,
+          "type": "string",
+          "description": "taskUuid",
+          "required": false
+        }
+      ]
+    },
+    "minutes.get.summary": {
+      "path": [
+        "minutes",
+        "get",
+        "summary"
+      ],
+      "description": "minutes/summary",
+      "flags": [
+        {
+          "name": "id",
+          "short": null,
+          "type": "string",
+          "description": "taskUuid",
+          "required": false
+        }
+      ]
+    },
+    "minutes.get.todos": {
+      "path": [
+        "minutes",
+        "get",
+        "todos"
+      ],
+      "description": "minutes/todos",
+      "flags": [
+        {
+          "name": "id",
+          "short": null,
+          "type": "string",
+          "description": "taskUuid",
+          "required": false
+        }
+      ]
+    },
+    "minutes.get.transcription": {
+      "path": [
+        "minutes",
+        "get",
+        "transcription"
+      ],
+      "description": "minutes/transcription",
+      "flags": [
+        {
+          "name": "direction",
+          "short": null,
+          "type": "string",
+          "description": "direction",
+          "required": false
+        },
+        {
+          "name": "id",
+          "short": null,
+          "type": "string",
+          "description": "taskUuid",
+          "required": false
+        },
+        {
+          "name": "next-token",
+          "short": null,
+          "type": "string",
+          "description": "nextToken",
+          "required": false
+        }
+      ]
+    },
+    "minutes.hot-word.add": {
+      "path": [
+        "minutes",
+        "hot-word",
+        "add"
+      ],
+      "description": "minutes/add",
+      "flags": [
+        {
+          "name": "words",
+          "short": null,
+          "type": "string",
+          "description": "hotWordList",
+          "required": false
+        }
+      ]
+    },
+    "minutes.list.all": {
+      "path": [
+        "minutes",
+        "list",
+        "all"
+      ],
+      "description": "minutes/all",
+      "flags": [
+        {
+          "name": "end",
+          "short": null,
+          "type": "string",
+          "description": "createTimeEnd",
+          "required": false
+        },
+        {
+          "name": "max",
+          "short": null,
+          "type": "string",
+          "description": "maxResults",
+          "required": false
+        },
+        {
+          "name": "next-token",
+          "short": null,
+          "type": "string",
+          "description": "nextToken",
+          "required": false
+        },
+        {
+          "name": "query",
+          "short": null,
+          "type": "string",
+          "description": "keyword",
+          "required": false
+        },
+        {
+          "name": "scope",
+          "short": null,
+          "type": "string",
+          "description": "belongingConditionId",
+          "required": false
+        },
+        {
+          "name": "start",
+          "short": null,
+          "type": "string",
+          "description": "createTimeStart",
+          "required": false
+        }
+      ]
+    },
+    "minutes.list.mine": {
+      "path": [
+        "minutes",
+        "list",
+        "mine"
+      ],
+      "description": "minutes/mine",
+      "flags": [
+        {
+          "name": "end",
+          "short": null,
+          "type": "string",
+          "description": "createTimeEnd",
+          "required": false
+        },
+        {
+          "name": "max",
+          "short": null,
+          "type": "string",
+          "description": "maxResults",
+          "required": false
+        },
+        {
+          "name": "next-token",
+          "short": null,
+          "type": "string",
+          "description": "nextToken",
+          "required": false
+        },
+        {
+          "name": "query",
+          "short": null,
+          "type": "string",
+          "description": "keyword",
+          "required": false
+        },
+        {
+          "name": "start",
+          "short": null,
+          "type": "string",
+          "description": "createTimeStart",
+          "required": false
+        }
+      ]
+    },
+    "minutes.list.shared": {
+      "path": [
+        "minutes",
+        "list",
+        "shared"
+      ],
+      "description": "minutes/shared",
+      "flags": [
+        {
+          "name": "end",
+          "short": null,
+          "type": "string",
+          "description": "createTimeEnd",
+          "required": false
+        },
+        {
+          "name": "max",
+          "short": null,
+          "type": "string",
+          "description": "maxResults",
+          "required": false
+        },
+        {
+          "name": "next-token",
+          "short": null,
+          "type": "string",
+          "description": "nextToken",
+          "required": false
+        },
+        {
+          "name": "query",
+          "short": null,
+          "type": "string",
+          "description": "keyword",
+          "required": false
+        },
+        {
+          "name": "start",
+          "short": null,
+          "type": "string",
+          "description": "createTimeStart",
+          "required": false
+        }
+      ]
+    },
+    "minutes.mind-graph.create": {
+      "path": [
+        "minutes",
+        "mind-graph",
+        "create"
+      ],
+      "description": "minutes/create",
+      "flags": [
+        {
+          "name": "id",
+          "short": null,
+          "type": "string",
+          "description": "taskUuid",
+          "required": false
+        }
+      ]
+    },
+    "minutes.mind-graph.status": {
+      "path": [
+        "minutes",
+        "mind-graph",
+        "status"
+      ],
+      "description": "minutes/status",
+      "flags": [
+        {
+          "name": "id",
+          "short": null,
+          "type": "string",
+          "description": "taskUuid",
+          "required": false
+        }
+      ]
+    },
+    "minutes.replace-text": {
+      "path": [
+        "minutes",
+        "replace-text"
+      ],
+      "description": "minutes/replace-text",
+      "flags": [
+        {
+          "name": "id",
+          "short": null,
+          "type": "string",
+          "description": "taskUuid",
+          "required": false
+        },
+        {
+          "name": "replace",
+          "short": null,
+          "type": "string",
+          "description": "replacedText",
+          "required": false
+        },
+        {
+          "name": "search",
+          "short": null,
+          "type": "string",
+          "description": "originalText",
+          "required": false
+        }
+      ]
+    },
+    "minutes.speaker.replace": {
+      "path": [
+        "minutes",
+        "speaker",
+        "replace"
+      ],
+      "description": "minutes/replace",
+      "flags": [
+        {
+          "name": "from",
+          "short": null,
+          "type": "string",
+          "description": "speakerNick",
+          "required": false
+        },
+        {
+          "name": "id",
+          "short": null,
+          "type": "string",
+          "description": "taskUuid",
+          "required": false
+        },
+        {
+          "name": "target-uid",
+          "short": null,
+          "type": "string",
+          "description": "targetUid",
+          "required": false
+        },
+        {
+          "name": "to",
+          "short": null,
+          "type": "string",
+          "description": "targetNickName",
+          "required": false
+        }
+      ]
+    },
+    "minutes.update.summary": {
+      "path": [
+        "minutes",
+        "update",
+        "summary"
+      ],
+      "description": "minutes/summary",
+      "flags": [
+        {
+          "name": "content",
+          "short": null,
+          "type": "string",
+          "description": "summaryText",
+          "required": false
+        },
+        {
+          "name": "id",
+          "short": null,
+          "type": "string",
+          "description": "taskUuid",
+          "required": false
+        }
+      ]
+    },
+    "minutes.update.title": {
+      "path": [
+        "minutes",
+        "update",
+        "title"
+      ],
+      "description": "minutes/title",
+      "flags": [
+        {
+          "name": "id",
+          "short": null,
+          "type": "string",
+          "description": "taskUuid",
+          "required": false
+        },
+        {
+          "name": "title",
+          "short": null,
+          "type": "string",
+          "description": "title",
+          "required": false
+        }
+      ]
+    },
+    "minutes.upload.cancel": {
+      "path": [
+        "minutes",
+        "upload",
+        "cancel"
+      ],
+      "description": "minutes/cancel",
+      "flags": [
+        {
+          "name": "session-id",
+          "short": null,
+          "type": "string",
+          "description": "sessionId",
+          "required": false
+        }
+      ]
+    },
+    "minutes.upload.complete": {
+      "path": [
+        "minutes",
+        "upload",
+        "complete"
+      ],
+      "description": "minutes/complete",
+      "flags": [
+        {
+          "name": "session-id",
+          "short": null,
+          "type": "string",
+          "description": "sessionId",
+          "required": false
+        }
+      ]
+    },
+    "minutes.upload.create": {
+      "path": [
+        "minutes",
+        "upload",
+        "create"
+      ],
+      "description": "minutes/create",
+      "flags": [
+        {
+          "name": "enable-message-card",
+          "short": null,
+          "type": "string",
+          "description": "minutesOption.enableMessageCard",
+          "required": false
+        },
+        {
+          "name": "file-name",
+          "short": null,
+          "type": "string",
+          "description": "fileName",
+          "required": false
+        },
+        {
+          "name": "file-size",
+          "short": null,
+          "type": "string",
+          "description": "fileSize",
+          "required": false
+        },
+        {
+          "name": "input-language",
+          "short": null,
+          "type": "string",
+          "description": "minutesOption.inputLanguage",
+          "required": false
+        },
+        {
+          "name": "template-id",
+          "short": null,
+          "type": "string",
+          "description": "minutesOption.templateId",
+          "required": false
+        },
+        {
+          "name": "title",
+          "short": null,
+          "type": "string",
+          "description": "title",
+          "required": false
+        }
+      ]
+    },
+    "oa.approval.approve": {
+      "path": [
+        "oa",
+        "approval",
+        "approve"
+      ],
+      "description": "oa/approve",
+      "flags": [
+        {
+          "name": "instance-id",
+          "short": null,
+          "type": "string",
+          "description": "processInstanceId",
+          "required": false
+        },
+        {
+          "name": "remark",
+          "short": null,
+          "type": "string",
+          "description": "remark",
+          "required": false
+        },
+        {
+          "name": "task-id",
+          "short": null,
+          "type": "string",
+          "description": "taskId",
+          "required": false
+        }
+      ]
+    },
+    "oa.approval.detail": {
+      "path": [
+        "oa",
+        "approval",
+        "detail"
+      ],
+      "description": "oa/detail",
+      "flags": [
+        {
+          "name": "instance-id",
+          "short": null,
+          "type": "string",
+          "description": "processInstanceId",
+          "required": false
+        }
+      ]
+    },
+    "oa.approval.list-forms": {
+      "path": [
+        "oa",
+        "approval",
+        "list-forms"
+      ],
+      "description": "oa/list-forms",
+      "flags": [
+        {
+          "name": "cursor",
+          "short": null,
+          "type": "string",
+          "description": "cursor",
+          "required": false
+        },
+        {
+          "name": "size",
+          "short": null,
+          "type": "string",
+          "description": "pageSize",
+          "required": false
+        }
+      ]
+    },
+    "oa.approval.list-initiated": {
+      "path": [
+        "oa",
+        "approval",
+        "list-initiated"
+      ],
+      "description": "查询当前用户已发起的审批实例列表",
+      "flags": [
+        {
+          "name": "end",
+          "short": null,
+          "type": "string",
+          "description": "结束时间 ISO-8601 (可选, 缺省查到当前)",
+          "required": false
+        },
+        {
+          "name": "max-results",
+          "short": null,
+          "type": "int",
+          "description": "每页大小 (最大 20)",
+          "required": false
+        },
+        {
+          "name": "next-token",
+          "short": null,
+          "type": "int",
+          "description": "分页游标 (首次传 0)",
+          "required": false
+        },
+        {
+          "name": "process-code",
+          "short": null,
+          "type": "string",
+          "description": "审批表单 processCode (必填) — 来自 dws oa approval list-forms",
+          "required": true
+        },
+        {
+          "name": "start",
+          "short": null,
+          "type": "string",
+          "description": "开始时间 ISO-8601, 例 2026-04-01T00:00:00+08:00 (必填)",
+          "required": true
+        }
+      ]
+    },
+    "oa.approval.list-pending": {
+      "path": [
+        "oa",
+        "approval",
+        "list-pending"
+      ],
+      "description": "oa/list-pending",
+      "flags": [
+        {
+          "name": "end",
+          "short": null,
+          "type": "string",
+          "description": "endTime",
+          "required": false
+        },
+        {
+          "name": "page",
+          "short": null,
+          "type": "string",
+          "description": "pageNum",
+          "required": false
+        },
+        {
+          "name": "size",
+          "short": null,
+          "type": "string",
+          "description": "pageSize",
+          "required": false
+        },
+        {
+          "name": "start",
+          "short": null,
+          "type": "string",
+          "description": "starTime",
+          "required": false
+        }
+      ]
+    },
+    "oa.approval.records": {
+      "path": [
+        "oa",
+        "approval",
+        "records"
+      ],
+      "description": "oa/records",
+      "flags": [
+        {
+          "name": "instance-id",
+          "short": null,
+          "type": "string",
+          "description": "processInstanceId",
+          "required": false
+        }
+      ]
+    },
+    "oa.approval.reject": {
+      "path": [
+        "oa",
+        "approval",
+        "reject"
+      ],
+      "description": "oa/reject",
+      "flags": [
+        {
+          "name": "instance-id",
+          "short": null,
+          "type": "string",
+          "description": "processInstanceId",
+          "required": false
+        },
+        {
+          "name": "remark",
+          "short": null,
+          "type": "string",
+          "description": "remark",
+          "required": false
+        },
+        {
+          "name": "task-id",
+          "short": null,
+          "type": "string",
+          "description": "taskId",
+          "required": false
+        }
+      ]
+    },
+    "oa.approval.revoke": {
+      "path": [
+        "oa",
+        "approval",
+        "revoke"
+      ],
+      "description": "oa/revoke",
+      "flags": [
+        {
+          "name": "instance-id",
+          "short": null,
+          "type": "string",
+          "description": "processInstanceId",
+          "required": false
+        },
+        {
+          "name": "remark",
+          "short": null,
+          "type": "string",
+          "description": "remark",
+          "required": false
+        }
+      ]
+    },
+    "oa.approval.tasks": {
+      "path": [
+        "oa",
+        "approval",
+        "tasks"
+      ],
+      "description": "oa/tasks",
+      "flags": [
+        {
+          "name": "instance-id",
+          "short": null,
+          "type": "string",
+          "description": "processInstanceId",
+          "required": false
+        }
+      ]
+    },
+    "pat.browser-policy": {
+      "path": [
+        "pat",
+        "browser-policy"
+      ],
+      "description": "配置 PAT 授权时是否打开浏览器",
+      "flags": [
+        {
+          "name": "agentCode",
+          "short": null,
+          "type": "string",
+          "description": "Agent 唯一标识（可选；不填则写入全局默认策略，不从 env DINGTALK_DWS_AGENTCODE 回退）",
+          "required": false
+        },
+        {
+          "name": "enabled",
+          "short": null,
+          "type": "PAT",
+          "description": "撞墙时是否允许本地打开浏览器",
+          "required": false
+        }
+      ]
+    },
+    "pat.chmod": {
+      "path": [
+        "pat",
+        "chmod"
+      ],
+      "description": "授予指定 scope 的操作权限。 scope 格式: <product>.<entity>:<permission> 例: aitable.record:read chat.group:write calendar.event:read grantType 规则: once 一次性，执行一次后自动失效 session 当前会话有效（默认），需要 --session-id permanent 永久有效",
+      "flags": [
+        {
+          "name": "agentCode",
+          "short": null,
+          "type": "string",
+          "description": "Agent 唯一标识（必填；亦可通过 env DINGTALK_DWS_AGENTCODE 注入，flag 优先）",
+          "required": true
+        },
+        {
+          "name": "grant-type",
+          "short": null,
+          "type": "string",
+          "description": "授权策略: once|session|permanent",
+          "required": false
+        },
+        {
+          "name": "session-id",
+          "short": null,
+          "type": "string",
+          "description": "会话标识（session 模式下必填）",
+          "required": true
+        }
+      ]
+    },
+    "report.create": {
+      "path": [
+        "report",
+        "create"
+      ],
+      "description": "按模版创建一条日志。--contents 为 JSON 数组，每项需含 key、sort、content、contentType、type， 与远程 create_report 一致；可先通过 report template list / template detail 取得 templateId 与控件定义。 注意：每个 contents 项的 key 必须精确等于模板的 field_name（中文/英文逐字匹配，不是控件 ID 或别名）。 key 与 field_name 不一致时钉钉 API 会返回 SYSTEM_ERROR (success=false)，CLI 层不会预先拦截。 请先用 report template detail 查到 report_template_fields[].field_name 后再填。",
+      "flags": [
+        {
+          "name": "contents",
+          "short": null,
+          "type": "string",
+          "description": "日志内容 JSON 数组 (必填)，每项含 key/sort/content/contentType/type；key 必须精确等于模板 field_name (用 report template detail --name <模板名> 查询)",
+          "required": true
+        },
+        {
+          "name": "dd-from",
+          "short": null,
+          "type": "string",
+          "description": "创建来源标识",
+          "required": false
+        },
+        {
+          "name": "template-id",
+          "short": null,
+          "type": "string",
+          "description": "日志模版 ID (必填)",
+          "required": true
+        },
+        {
+          "name": "to-chat",
+          "short": null,
+          "type": "bool",
+          "description": "是否发送到日志接收人单聊",
+          "required": false
+        },
+        {
+          "name": "to-user-ids",
+          "short": null,
+          "type": "string",
+          "description": "接收人 userId，逗号分隔 (可选)",
+          "required": false
+        }
+      ]
+    },
+    "report.detail": {
+      "path": [
+        "report",
+        "detail"
+      ],
+      "description": "获取日志详情",
+      "flags": [
+        {
+          "name": "report-id",
+          "short": null,
+          "type": "string",
+          "description": "日志 ID (必填)",
+          "required": true
+        }
+      ]
+    },
+    "report.list": {
+      "path": [
+        "report",
+        "list"
+      ],
+      "description": "查询当前人收到的日志列表",
+      "flags": [
+        {
+          "name": "cursor",
+          "short": null,
+          "type": "int",
+          "description": "分页游标，首次传 0 (默认 0)",
+          "required": false
+        },
+        {
+          "name": "end",
+          "short": null,
+          "type": "string",
+          "description": "结束时间 ISO-8601 (如 2026-03-10T23:59:59+08:00) (必填)",
+          "required": true
+        },
+        {
+          "name": "size",
+          "short": null,
+          "type": "int",
+          "description": "每页条数，最大 20 (默认 20)",
+          "required": false
+        },
+        {
+          "name": "start",
+          "short": null,
+          "type": "string",
+          "description": "开始时间 ISO-8601 (如 2026-03-10T00:00:00+08:00) (必填)",
+          "required": true
+        }
+      ]
+    },
+    "report.sent": {
+      "path": [
+        "report",
+        "sent"
+      ],
+      "description": "查询当前人创建的日志列表",
+      "flags": [
+        {
+          "name": "cursor",
+          "short": null,
+          "type": "int",
+          "description": "分页游标，首次传 0 (默认 0)",
+          "required": false
+        },
+        {
+          "name": "end",
+          "short": null,
+          "type": "string",
+          "description": "创建结束时间 ISO-8601 (默认最近 30 天)",
+          "required": false
+        },
+        {
+          "name": "modified-end",
+          "short": null,
+          "type": "string",
+          "description": "修改结束时间 ISO-8601 (可选)",
+          "required": false
+        },
+        {
+          "name": "modified-start",
+          "short": null,
+          "type": "string",
+          "description": "修改开始时间 ISO-8601 (可选)",
+          "required": false
+        },
+        {
+          "name": "size",
+          "short": null,
+          "type": "int",
+          "description": "每页条数，最大 20 (默认 20)",
+          "required": false
+        },
+        {
+          "name": "start",
+          "short": null,
+          "type": "string",
+          "description": "创建开始时间 ISO-8601 (默认最近 30 天)",
+          "required": false
+        },
+        {
+          "name": "template-name",
+          "short": null,
+          "type": "string",
+          "description": "日志模板名称 (可选，不传查全部)",
+          "required": false
+        }
+      ]
+    },
+    "report.stats": {
+      "path": [
+        "report",
+        "stats"
+      ],
+      "description": "获取日志统计数据",
+      "flags": [
+        {
+          "name": "report-id",
+          "short": null,
+          "type": "string",
+          "description": "日志 ID (必填)",
+          "required": true
+        }
+      ]
+    },
+    "report.template.detail": {
+      "path": [
+        "report",
+        "template",
+        "detail"
+      ],
+      "description": "获取日志模版详情",
+      "flags": [
+        {
+          "name": "name",
+          "short": null,
+          "type": "string",
+          "description": "模版名称 (必填)",
+          "required": true
+        }
+      ]
+    },
+    "report.template.list": {
+      "path": [
+        "report",
+        "template",
+        "list"
+      ],
+      "description": "获取当前用户可用的日志模版列表",
+      "flags": []
+    },
+    "sheet.add-dimension": {
+      "path": [
+        "sheet",
+        "add-dimension"
+      ],
+      "description": "在工作表末尾追加空行或空列",
+      "flags": [
+        {
+          "name": "dimension",
+          "short": null,
+          "type": "string",
+          "description": "维度类型: ROWS 或 COLUMNS (必填)",
+          "required": true
+        },
+        {
+          "name": "length",
+          "short": null,
+          "type": "string",
+          "description": "追加数量，正整数 (必填)",
+          "required": true
+        },
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "表格文档 ID 或 URL (必填)",
+          "required": true
+        },
+        {
+          "name": "sheet-id",
+          "short": null,
+          "type": "string",
+          "description": "工作表 ID 或名称 (必填)",
+          "required": true
+        }
+      ]
+    },
+    "sheet.append": {
+      "path": [
+        "sheet",
+        "append"
+      ],
+      "description": "在工作表末尾追加若干行数据",
+      "flags": [
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "表格文档 ID 或 URL (必填)",
+          "required": true
+        },
+        {
+          "name": "sheet-id",
+          "short": null,
+          "type": "string",
+          "description": "工作表 ID 或名称 (必填)",
+          "required": true
+        },
+        {
+          "name": "values",
+          "short": null,
+          "type": "string",
+          "description": "追加数据，二维 JSON 数组 (必填)",
+          "required": true
+        }
+      ]
+    },
+    "sheet.create": {
+      "path": [
+        "sheet",
+        "create"
+      ],
+      "description": "创建钉钉表格文档",
+      "flags": [
+        {
+          "name": "folder",
+          "short": null,
+          "type": "string",
+          "description": "目标文件夹 ID 或 URL",
+          "required": false
+        },
+        {
+          "name": "name",
+          "short": null,
+          "type": "string",
+          "description": "表格名称 (必填)",
+          "required": true
+        },
+        {
+          "name": "workspace",
+          "short": null,
+          "type": "string",
+          "description": "目标知识库 ID",
+          "required": false
+        }
+      ]
+    },
+    "sheet.delete-dimension": {
+      "path": [
+        "sheet",
+        "delete-dimension"
+      ],
+      "description": "删除指定位置起的若干行或列",
+      "flags": [
+        {
+          "name": "dimension",
+          "short": null,
+          "type": "string",
+          "description": "删除维度: ROWS 或 COLUMNS (必填)",
+          "required": true
+        },
+        {
+          "name": "length",
+          "short": null,
+          "type": "string",
+          "description": "删除数量，正整数 (必填)，最大 5000",
+          "required": true
+        },
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "表格文档 ID 或 URL (必填)",
+          "required": true
+        },
+        {
+          "name": "position",
+          "short": null,
+          "type": "string",
+          "description": "删除起始位置，A1 表示法 (必填)",
+          "required": true
+        },
+        {
+          "name": "sheet-id",
+          "short": null,
+          "type": "string",
+          "description": "工作表 ID 或名称 (必填)",
+          "required": true
+        }
+      ]
+    },
+    "sheet.filter-view.create": {
+      "path": [
+        "sheet",
+        "filter-view",
+        "create"
+      ],
+      "description": "创建筛选视图",
+      "flags": [
+        {
+          "name": "criteria",
+          "short": null,
+          "type": "string",
+          "description": "筛选条件 JSON 数组 (选填，仅接受严格 JSON)",
+          "required": false
+        },
+        {
+          "name": "name",
+          "short": null,
+          "type": "string",
+          "description": "筛选视图名称 (必填)",
+          "required": true
+        },
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "表格文档 ID 或 URL (必填)",
+          "required": true
+        },
+        {
+          "name": "range",
+          "short": null,
+          "type": "string",
+          "description": "筛选范围，A1 表示法 (必填)",
+          "required": true
+        },
+        {
+          "name": "sheet-id",
+          "short": null,
+          "type": "string",
+          "description": "工作表 ID 或名称 (必填)",
+          "required": true
+        }
+      ]
+    },
+    "sheet.filter-view.delete": {
+      "path": [
+        "sheet",
+        "filter-view",
+        "delete"
+      ],
+      "description": "删除筛选视图",
+      "flags": [
+        {
+          "name": "filter-view-id",
+          "short": null,
+          "type": "string",
+          "description": "筛选视图 ID (必填)",
+          "required": true
+        },
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "表格文档 ID 或 URL (必填)",
+          "required": true
+        },
+        {
+          "name": "sheet-id",
+          "short": null,
+          "type": "string",
+          "description": "工作表 ID 或名称 (必填)",
+          "required": true
+        }
+      ]
+    },
+    "sheet.filter-view.delete-criteria": {
+      "path": [
+        "sheet",
+        "filter-view",
+        "delete-criteria"
+      ],
+      "description": "清除筛选视图某列的筛选条件",
+      "flags": [
+        {
+          "name": "column",
+          "short": null,
+          "type": "int",
+          "description": "列索引，0-based (必填)",
+          "required": true
+        },
+        {
+          "name": "filter-view-id",
+          "short": null,
+          "type": "string",
+          "description": "筛选视图 ID (必填)",
+          "required": true
+        },
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "表格文档 ID 或 URL (必填)",
+          "required": true
+        },
+        {
+          "name": "sheet-id",
+          "short": null,
+          "type": "string",
+          "description": "工作表 ID 或名称 (必填)",
+          "required": true
+        }
+      ]
+    },
+    "sheet.filter-view.list": {
+      "path": [
+        "sheet",
+        "filter-view",
+        "list"
+      ],
+      "description": "查询工作表的筛选视图列表",
+      "flags": [
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "表格文档 ID 或 URL (必填)",
+          "required": true
+        },
+        {
+          "name": "sheet-id",
+          "short": null,
+          "type": "string",
+          "description": "工作表 ID 或名称 (必填)",
+          "required": true
+        }
+      ]
+    },
+    "sheet.filter-view.update": {
+      "path": [
+        "sheet",
+        "filter-view",
+        "update"
+      ],
+      "description": "更新筛选视图（名称/范围/条件）",
+      "flags": [
+        {
+          "name": "criteria",
+          "short": null,
+          "type": "string",
+          "description": "新筛选条件 JSON 数组 (选填，仅接受严格 JSON)",
+          "required": false
+        },
+        {
+          "name": "filter-view-id",
+          "short": null,
+          "type": "string",
+          "description": "筛选视图 ID (必填)",
+          "required": true
+        },
+        {
+          "name": "name",
+          "short": null,
+          "type": "string",
+          "description": "新筛选视图名称 (选填)",
+          "required": false
+        },
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "表格文档 ID 或 URL (必填)",
+          "required": true
+        },
+        {
+          "name": "range",
+          "short": null,
+          "type": "string",
+          "description": "新筛选范围 (选填)",
+          "required": false
+        },
+        {
+          "name": "sheet-id",
+          "short": null,
+          "type": "string",
+          "description": "工作表 ID 或名称 (必填)",
+          "required": true
+        }
+      ]
+    },
+    "sheet.filter-view.update-criteria": {
+      "path": [
+        "sheet",
+        "filter-view",
+        "update-criteria"
+      ],
+      "description": "设置/更新筛选视图某列的筛选条件",
+      "flags": [
+        {
+          "name": "column",
+          "short": null,
+          "type": "int",
+          "description": "列索引，0-based (必填)",
+          "required": true
+        },
+        {
+          "name": "filter-criteria",
+          "short": null,
+          "type": "string",
+          "description": "筛选条件 JSON 对象 (必填)",
+          "required": true
+        },
+        {
+          "name": "filter-view-id",
+          "short": null,
+          "type": "string",
+          "description": "筛选视图 ID (必填)",
+          "required": true
+        },
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "表格文档 ID 或 URL (必填)",
+          "required": true
+        },
+        {
+          "name": "sheet-id",
+          "short": null,
+          "type": "string",
+          "description": "工作表 ID 或名称 (必填)",
+          "required": true
+        }
+      ]
+    },
+    "sheet.find": {
+      "path": [
+        "sheet",
+        "find"
+      ],
+      "description": "在工作表中搜索单元格内容（支持子串/正则/整格匹配/搜索公式文本/包含隐藏）",
+      "flags": [
+        {
+          "name": "find",
+          "short": null,
+          "type": "string",
+          "description": "搜索文本 (必填)",
+          "required": true
+        },
+        {
+          "name": "include-hidden",
+          "short": null,
+          "type": "bool",
+          "description": "包含隐藏单元格",
+          "required": false
+        },
+        {
+          "name": "match-case",
+          "short": null,
+          "type": "bool",
+          "description": "区分大小写 (默认 true)",
+          "required": false
+        },
+        {
+          "name": "match-entire-cell",
+          "short": null,
+          "type": "bool",
+          "description": "精确匹配整个单元格内容",
+          "required": false
+        },
+        {
+          "name": "match-formula",
+          "short": null,
+          "type": "bool",
+          "description": "搜索公式文本而非显示值",
+          "required": false
+        },
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "表格文档 ID 或 URL (必填)",
+          "required": true
+        },
+        {
+          "name": "range",
+          "short": null,
+          "type": "string",
+          "description": "搜索范围，A1 表示法 (如 A1:D10)",
+          "required": false
+        },
+        {
+          "name": "sheet-id",
+          "short": null,
+          "type": "string",
+          "description": "工作表 ID 或名称 (必填)",
+          "required": true
+        },
+        {
+          "name": "use-regexp",
+          "short": null,
+          "type": "bool",
+          "description": "启用正则表达式搜索",
+          "required": false
+        }
+      ]
+    },
+    "sheet.get": {
+      "path": [
+        "sheet",
+        "get"
+      ],
+      "description": "Please use: dws sheet range read",
+      "flags": []
+    },
+    "sheet.info": {
+      "path": [
+        "sheet",
+        "info"
+      ],
+      "description": "获取指定工作表详情",
+      "flags": [
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "表格文档 ID 或 URL (必填)",
+          "required": true
+        },
+        {
+          "name": "sheet-id",
+          "short": null,
+          "type": "string",
+          "description": "工作表 ID 或名称 (不传则返回第一个工作表)",
+          "required": false
+        }
+      ]
+    },
+    "sheet.insert-dimension": {
+      "path": [
+        "sheet",
+        "insert-dimension"
+      ],
+      "description": "在指定位置插入空行或空列",
+      "flags": [
+        {
+          "name": "dimension",
+          "short": null,
+          "type": "string",
+          "description": "插入维度: ROWS 或 COLUMNS (必填)",
+          "required": true
+        },
+        {
+          "name": "length",
+          "short": null,
+          "type": "string",
+          "description": "插入数量，正整数 (必填)，最大 5000",
+          "required": true
+        },
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "表格文档 ID 或 URL (必填)",
+          "required": true
+        },
+        {
+          "name": "position",
+          "short": null,
+          "type": "string",
+          "description": "插入位置，A1 表示法 (必填)。ROWS 时为行号；COLUMNS 时为列字母",
+          "required": true
+        },
+        {
+          "name": "sheet-id",
+          "short": null,
+          "type": "string",
+          "description": "工作表 ID 或名称 (必填)",
+          "required": true
+        }
+      ]
+    },
+    "sheet.list": {
+      "path": [
+        "sheet",
+        "list"
+      ],
+      "description": "获取全部工作表列表",
+      "flags": [
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "表格文档 ID 或 URL (必填)",
+          "required": true
+        }
+      ]
+    },
+    "sheet.merge-cells": {
+      "path": [
+        "sheet",
+        "merge-cells"
+      ],
+      "description": "合并指定范围的单元格（mergeAll/mergeRows/mergeColumns）",
+      "flags": [
+        {
+          "name": "merge-type",
+          "short": null,
+          "type": "string",
+          "description": "合并方式: mergeAll(默认)/mergeRows/mergeColumns",
+          "required": false
+        },
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "表格文档 ID 或 URL (必填)",
+          "required": true
+        },
+        {
+          "name": "range",
+          "short": null,
+          "type": "string",
+          "description": "目标单元格区域地址，如 A1:B3 (必填)",
+          "required": true
+        },
+        {
+          "name": "sheet-id",
+          "short": null,
+          "type": "string",
+          "description": "工作表 ID 或名称 (必填)",
+          "required": true
+        }
+      ]
+    },
+    "sheet.move-dimension": {
+      "path": [
+        "sheet",
+        "move-dimension"
+      ],
+      "description": "移动行或列到指定位置（0-based 索引）",
+      "flags": [
+        {
+          "name": "destination-index",
+          "short": null,
+          "type": "string",
+          "description": "目标位置索引，0-based (必填)",
+          "required": true
+        },
+        {
+          "name": "dimension",
+          "short": null,
+          "type": "string",
+          "description": "维度类型: ROWS 或 COLUMNS (必填)",
+          "required": true
+        },
+        {
+          "name": "end-index",
+          "short": null,
+          "type": "string",
+          "description": "源结束索引，0-based，包含 (必填)",
+          "required": true
+        },
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "表格文档 ID 或 URL (必填)",
+          "required": true
+        },
+        {
+          "name": "sheet-id",
+          "short": null,
+          "type": "string",
+          "description": "工作表 ID 或名称 (必填)",
+          "required": true
+        },
+        {
+          "name": "start-index",
+          "short": null,
+          "type": "string",
+          "description": "源起始索引，0-based (必填)",
+          "required": true
+        }
+      ]
+    },
+    "sheet.new": {
+      "path": [
+        "sheet",
+        "new"
+      ],
+      "description": "新建工作表",
+      "flags": [
+        {
+          "name": "name",
+          "short": null,
+          "type": "string",
+          "description": "工作表名称 (必填)",
+          "required": true
+        },
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "表格文档 ID (必填)",
+          "required": true
+        }
+      ]
+    },
+    "sheet.range.read": {
+      "path": [
+        "sheet",
+        "range",
+        "read"
+      ],
+      "description": "读取工作表数据（别名: get）",
+      "flags": [
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "表格文档 ID 或 URL (必填)",
+          "required": true
+        },
+        {
+          "name": "range",
+          "short": null,
+          "type": "string",
+          "description": "读取范围，A1 表示法 (如 A1:D10，不传则读取全部数据)",
+          "required": false
+        },
+        {
+          "name": "sheet-id",
+          "short": null,
+          "type": "string",
+          "description": "工作表 ID 或名称 (不传则默认第一个工作表)",
+          "required": false
+        }
+      ]
+    },
+    "sheet.range.update": {
+      "path": [
+        "sheet",
+        "range",
+        "update"
+      ],
+      "description": "更新工作表指定区域内容（--values 与 --hyperlinks 至少传一项）",
+      "flags": [
+        {
+          "name": "hyperlinks",
+          "short": null,
+          "type": "string",
+          "description": "超链接，二维 JSON 数组 (与 --values 至少传一项)",
+          "required": false
+        },
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "表格文档 ID (必填)",
+          "required": true
+        },
+        {
+          "name": "number-format",
+          "short": null,
+          "type": "string",
+          "description": "数字格式，如 General/@/#,##0/0%/yyyy/m/d 等",
+          "required": false
+        },
+        {
+          "name": "range",
+          "short": null,
+          "type": "string",
+          "description": "目标单元格区域地址，如 A1:B3 (必填)",
+          "required": true
+        },
+        {
+          "name": "sheet-id",
+          "short": null,
+          "type": "string",
+          "description": "工作表 ID 或名称 (必填)",
+          "required": true
+        },
+        {
+          "name": "values",
+          "short": null,
+          "type": "string",
+          "description": "单元格值，二维 JSON 数组 (与 --hyperlinks 至少传一项)",
+          "required": false
+        }
+      ]
+    },
+    "sheet.read": {
+      "path": [
+        "sheet",
+        "read"
+      ],
+      "description": "Please use: dws sheet range read",
+      "flags": []
+    },
+    "sheet.replace": {
+      "path": [
+        "sheet",
+        "replace"
+      ],
+      "description": "全局查找替换（支持正则/整格匹配/区分大小写/范围/包含隐藏）",
+      "flags": [
+        {
+          "name": "find",
+          "short": null,
+          "type": "string",
+          "description": "查找文本 (必填)",
+          "required": true
+        },
+        {
+          "name": "include-hidden",
+          "short": null,
+          "type": "bool",
+          "description": "包含隐藏行/列",
+          "required": false
+        },
+        {
+          "name": "match-case",
+          "short": null,
+          "type": "bool",
+          "description": "区分大小写 (默认 false)",
+          "required": false
+        },
+        {
+          "name": "match-entire-cell",
+          "short": null,
+          "type": "bool",
+          "description": "完整单元格匹配",
+          "required": false
+        },
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "表格文档 ID 或 URL (必填)",
+          "required": true
+        },
+        {
+          "name": "range",
+          "short": null,
+          "type": "string",
+          "description": "替换范围，A1 表示法 (如 A1:D100)",
+          "required": false
+        },
+        {
+          "name": "replacement",
+          "short": null,
+          "type": "string",
+          "description": "替换文本 (必填，可为空字符串表示删除；--replace 为别名)",
+          "required": true
+        },
+        {
+          "name": "sheet-id",
+          "short": null,
+          "type": "string",
+          "description": "工作表 ID 或名称 (必填)",
+          "required": true
+        },
+        {
+          "name": "use-regexp",
+          "short": null,
+          "type": "bool",
+          "description": "启用正则表达式匹配",
+          "required": false
+        }
+      ]
+    },
+    "sheet.unmerge-cells": {
+      "path": [
+        "sheet",
+        "unmerge-cells"
+      ],
+      "description": "取消指定范围的合并单元格",
+      "flags": [
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "表格文档 ID 或 URL (必填)",
+          "required": true
+        },
+        {
+          "name": "range",
+          "short": null,
+          "type": "string",
+          "description": "取消合并的范围，A1 表示法 (必填)",
+          "required": true
+        },
+        {
+          "name": "sheet-id",
+          "short": null,
+          "type": "string",
+          "description": "工作表 ID 或名称 (必填)",
+          "required": true
+        }
+      ]
+    },
+    "sheet.update": {
+      "path": [
+        "sheet",
+        "update"
+      ],
+      "description": "Please use: dws sheet range update",
+      "flags": []
+    },
+    "sheet.update-dimension": {
+      "path": [
+        "sheet",
+        "update-dimension"
+      ],
+      "description": "更新指定范围行/列属性（显隐 hidden、行高/列宽 pixel-size，至少一项）",
+      "flags": [
+        {
+          "name": "dimension",
+          "short": null,
+          "type": "string",
+          "description": "更新维度: ROWS 或 COLUMNS (必填)",
+          "required": true
+        },
+        {
+          "name": "hidden",
+          "short": null,
+          "type": "bool",
+          "description": "是否隐藏 (true=隐藏, false=显示)",
+          "required": false
+        },
+        {
+          "name": "length",
+          "short": null,
+          "type": "string",
+          "description": "更新数量，正整数 (必填)",
+          "required": true
+        },
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "表格文档 ID 或 URL (必填)",
+          "required": true
+        },
+        {
+          "name": "pixel-size",
+          "short": null,
+          "type": "int",
+          "description": "行高或列宽（像素）",
+          "required": false
+        },
+        {
+          "name": "sheet-id",
+          "short": null,
+          "type": "string",
+          "description": "工作表 ID 或名称 (必填)",
+          "required": true
+        },
+        {
+          "name": "start-index",
+          "short": null,
+          "type": "string",
+          "description": "起始位置，A1 表示法 (必填)。ROWS 时为行号；COLUMNS 时为列字母",
+          "required": true
+        }
+      ]
+    },
+    "sheet.write-image": {
+      "path": [
+        "sheet",
+        "write-image"
+      ],
+      "description": "将已上传图片资源写入指定单元格",
+      "flags": [
+        {
+          "name": "height",
+          "short": null,
+          "type": "string",
+          "description": "图片显示高度（像素）",
+          "required": false
+        },
+        {
+          "name": "node",
+          "short": null,
+          "type": "string",
+          "description": "表格文档 ID 或 URL (必填)",
+          "required": true
+        },
+        {
+          "name": "range",
+          "short": null,
+          "type": "string",
+          "description": "目标单元格区域地址，如 A1:B3 (必填)",
+          "required": true
+        },
+        {
+          "name": "resource-id",
+          "short": null,
+          "type": "string",
+          "description": "图片资源 ID (必填，由附件上传接口返回)",
+          "required": true
+        },
+        {
+          "name": "resource-url",
+          "short": null,
+          "type": "string",
+          "description": "图片资源 URL (必填)",
+          "required": true
+        },
+        {
+          "name": "sheet-id",
+          "short": null,
+          "type": "string",
+          "description": "工作表 ID 或名称 (必填)",
+          "required": true
+        },
+        {
+          "name": "width",
+          "short": null,
+          "type": "string",
+          "description": "图片显示宽度（像素）",
+          "required": false
+        }
+      ]
+    },
+    "todo.task.create": {
+      "path": [
+        "todo",
+        "task",
+        "create"
+      ],
+      "description": "Create todo",
+      "flags": [
+        {
+          "name": "due",
+          "short": null,
+          "type": "string",
+          "description": "Due time ISO-8601 (e.g. 2026-03-10T18:00:00+08:00)",
+          "required": false
+        },
+        {
+          "name": "executors",
+          "short": null,
+          "type": "string",
+          "description": "执行者 userId 列表，逗号分隔 (必填)。注意: 此处是通讯录 userId，可通过 dws contact user search --query 姓名 查询",
+          "required": true
+        },
+        {
+          "name": "priority",
+          "short": null,
+          "type": "string",
+          "description": "Priority: 10=low/20=normal/30=high/40=urgent",
+          "required": false
+        },
+        {
+          "name": "recurrence",
+          "short": null,
+          "type": "string",
+          "description": "Recurring todo (requires --due); format: DTSTART:...\\nRRULE:FREQ=DAILY;INTERVAL=1",
+          "required": false
+        },
+        {
+          "name": "title",
+          "short": null,
+          "type": "string",
+          "description": "Todo title (required)",
+          "required": true
+        }
+      ]
+    },
+    "todo.task.delete": {
+      "path": [
+        "todo",
+        "task",
+        "delete"
+      ],
+      "description": "Delete todo",
+      "flags": [
+        {
+          "name": "task-id",
+          "short": null,
+          "type": "string",
+          "description": "Todo task ID (required)",
+          "required": true
+        },
+        {
+          "name": "yes",
+          "short": null,
+          "type": "Skip",
+          "description": "confirmation and delete directly",
+          "required": false
+        }
+      ]
+    },
+    "todo.task.done": {
+      "path": [
+        "todo",
+        "task",
+        "done"
+      ],
+      "description": "Update executor todo done status",
+      "flags": [
+        {
+          "name": "status",
+          "short": null,
+          "type": "string",
+          "description": "Done status: true=completed, false=not completed (required)",
+          "required": true
+        },
+        {
+          "name": "task-id",
+          "short": null,
+          "type": "string",
+          "description": "Todo task ID (required)",
+          "required": true
+        }
+      ]
+    },
+    "todo.task.get": {
+      "path": [
+        "todo",
+        "task",
+        "get"
+      ],
+      "description": "查看待办任务详情。 返回字段说明: creatorId / executorIds / participantIds / modifierId 待办系统内部人员标识（短数字 ID，如 6380165826）， 不是通讯录 userId（如 035551044606950179）或 unionid。 这些 ID 在待办系统内对同一用户稳定，但无法直接用于通讯录 API 查询。 如需获取人员姓名，可参考返回中的 creatorInfo / executorInfos / participantInfos 字段（包含 name 属性）。 bizTag / source 底层待办引擎的实现标识。即使是在钉钉客户端直接创建的普通个人待办， 也会返回 \"teambition\"，这是内核实现细节，不代表来自 Teambition 产品。 tenantId / tenantType 待办所属的租户标识，非企业 corpId。tenantType 为 \"user\" 时 tenantId 是用户维度标识；为 \"org\" 时是组织维度标识。",
+      "flags": [
+        {
+          "name": "task-id",
+          "short": null,
+          "type": "string",
+          "description": "Todo task ID (required)",
+          "required": true
+        }
+      ]
+    },
+    "todo.task.list": {
+      "path": [
+        "todo",
+        "task",
+        "list"
+      ],
+      "description": "查询当前用户在当前企业的待办列表。 覆盖范围: 返回当前用户作为\"执行者\"(executor) 的待办。 仅参与但不执行的待办、自己创建但交给他人执行的待办不在返回范围内。 当前列表能力面向\"个人待办\"，即钉钉待办模块中展示的待办任务， 不包含 OA 审批流待办、Teambition 项目任务等其他业务线的待办。 分页: 默认每页 20 条。--size 超过 20 时，CLI 会自动进行多次 API 调用 并合并结果（自动分页），无需手动翻页。",
+      "flags": [
+        {
+          "name": "page",
+          "short": null,
+          "type": "string",
+          "description": "page number (required)",
+          "required": true
+        },
+        {
+          "name": "size",
+          "short": null,
+          "type": "string",
+          "description": "Fetch count, auto-paginate if over 20",
+          "required": false
+        },
+        {
+          "name": "status",
+          "short": null,
+          "type": "string",
+          "description": "true=completed, false=not completed",
+          "required": false
+        }
+      ]
+    },
+    "todo.task.update": {
+      "path": [
+        "todo",
+        "task",
+        "update"
+      ],
+      "description": "Update todo task",
+      "flags": [
+        {
+          "name": "done",
+          "short": null,
+          "type": "string",
+          "description": "Done status: true/false",
+          "required": false
+        },
+        {
+          "name": "due",
+          "short": null,
+          "type": "string",
+          "description": "Due time ISO-8601 (e.g. 2026-03-10T18:00:00+08:00)",
+          "required": false
+        },
+        {
+          "name": "priority",
+          "short": null,
+          "type": "string",
+          "description": "Priority: 10=low/20=normal/30=high/40=urgent",
+          "required": false
+        },
+        {
+          "name": "task-id",
+          "short": null,
+          "type": "string",
+          "description": "Todo task ID (required)",
+          "required": true
+        },
+        {
+          "name": "title",
+          "short": null,
+          "type": "string",
+          "description": "New title",
+          "required": false
+        }
+      ]
+    },
+    "wiki.create": {
+      "path": [
+        "wiki",
+        "create"
+      ],
+      "description": "Please use: dws wiki space create",
+      "flags": []
+    },
+    "wiki.get": {
+      "path": [
+        "wiki",
+        "get"
+      ],
+      "description": "Please use: dws wiki space get",
+      "flags": []
+    },
+    "wiki.list": {
+      "path": [
+        "wiki",
+        "list"
+      ],
+      "description": "Please use: dws wiki space list",
+      "flags": []
+    },
+    "wiki.member.add": {
+      "path": [
+        "wiki",
+        "member",
+        "add"
+      ],
+      "description": "添加知识库成员",
+      "flags": [
+        {
+          "name": "role",
+          "short": null,
+          "type": "string",
+          "description": "权限角色: MANAGER / EDITOR / DOWNLOADER / READER (必填，CLI 自动转大写)",
+          "required": true
+        },
+        {
+          "name": "space",
+          "short": null,
+          "type": "string",
+          "description": "知识库 ID 或 URL (必填，--workspace 为别名)",
+          "required": true
+        },
+        {
+          "name": "user",
+          "short": null,
+          "type": "string",
+          "description": "被添加的用户 userId 列表，逗号分隔 (必填，单次最多 30 个)",
+          "required": true
+        }
+      ]
+    },
+    "wiki.member.list": {
+      "path": [
+        "wiki",
+        "member",
+        "list"
+      ],
+      "description": "查询知识库成员列表（别名: ls）",
+      "flags": [
+        {
+          "name": "filter-role",
+          "short": null,
+          "type": "string",
+          "description": "按角色过滤（逗号分隔）：OWNER / MANAGER / EDITOR / DOWNLOADER / READER",
+          "required": false
+        },
+        {
+          "name": "max-results",
+          "short": null,
+          "type": "string",
+          "description": "返回成员数上限，默认 30，最大 200",
+          "required": false
+        },
+        {
+          "name": "space",
+          "short": null,
+          "type": "string",
+          "description": "知识库 ID 或 URL (必填，--workspace 为别名)",
+          "required": true
+        }
+      ]
+    },
+    "wiki.member.update": {
+      "path": [
+        "wiki",
+        "member",
+        "update"
+      ],
+      "description": "更新知识库成员权限",
+      "flags": [
+        {
+          "name": "role",
+          "short": null,
+          "type": "string",
+          "description": "新权限角色: MANAGER / EDITOR / DOWNLOADER / READER (必填，CLI 自动转大写)",
+          "required": true
+        },
+        {
+          "name": "space",
+          "short": null,
+          "type": "string",
+          "description": "知识库 ID 或 URL (必填，--workspace 为别名)",
+          "required": true
+        },
+        {
+          "name": "user",
+          "short": null,
+          "type": "string",
+          "description": "被更新的用户 userId 列表，逗号分隔 (必填，单次最多 30 个)",
+          "required": true
+        }
+      ]
+    },
+    "wiki.search": {
+      "path": [
+        "wiki",
+        "search"
+      ],
+      "description": "Please use: dws wiki space search",
+      "flags": []
+    },
+    "wiki.space.create": {
+      "path": [
+        "wiki",
+        "space",
+        "create"
+      ],
+      "description": "创建知识库",
+      "flags": [
+        {
+          "name": "description",
+          "short": null,
+          "type": "string",
+          "description": "知识库描述 (选填，不超过 500 字符)",
+          "required": false
+        },
+        {
+          "name": "icon",
+          "short": null,
+          "type": "string",
+          "description": "知识库图标标识 (选填)",
+          "required": false
+        },
+        {
+          "name": "name",
+          "short": null,
+          "type": "string",
+          "description": "知识库名称 (必填，不超过 100 字符)",
+          "required": true
+        }
+      ]
+    },
+    "wiki.space.get": {
+      "path": [
+        "wiki",
+        "space",
+        "get"
+      ],
+      "description": "查看知识库详情",
+      "flags": [
+        {
+          "name": "id",
+          "short": null,
+          "type": "string",
+          "description": "知识库 ID 或 URL (必填)",
+          "required": true
+        }
+      ]
+    },
+    "wiki.space.list": {
+      "path": [
+        "wiki",
+        "space",
+        "list"
+      ],
+      "description": "列出知识库",
+      "flags": [
+        {
+          "name": "limit",
+          "short": null,
+          "type": "string",
+          "description": "每页数量 1-50 (默认 20)",
+          "required": false
+        },
+        {
+          "name": "page-token",
+          "short": null,
+          "type": "string",
+          "description": "分页游标 (首页留空)",
+          "required": false
+        },
+        {
+          "name": "type",
+          "short": null,
+          "type": "string",
+          "description": "知识库类型: myWikiSpace / orgWikiSpace (默认 orgWikiSpace)",
+          "required": false
+        }
+      ]
+    },
+    "wiki.space.search": {
+      "path": [
+        "wiki",
+        "space",
+        "search"
+      ],
+      "description": "搜索知识库",
+      "flags": [
+        {
+          "name": "keyword",
+          "short": null,
+          "type": "string",
+          "description": "搜索关键词 (必填)",
+          "required": true
+        },
+        {
+          "name": "limit",
+          "short": null,
+          "type": "string",
+          "description": "返回数量 1-20 (默认 10)",
+          "required": false
+        }
+      ]
+    }
+  }
+}
