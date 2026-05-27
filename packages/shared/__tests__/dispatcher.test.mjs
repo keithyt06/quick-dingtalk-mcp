@@ -111,6 +111,20 @@ test("toCliArgs: missing required flag throws InputError", () => {
   );
 });
 
+test("toCliArgs: stringArray drops null/undefined/empty elements", () => {
+  const cmd = {
+    path: ["x"],
+    flags: [{ name: "users", type: "stringArray" }],
+  };
+  const args = toCliArgs(cmd, { users: ["a", null, "", undefined, "b"] });
+  // only --users a and --users b survive
+  const userOccurrences = args.filter((x) => x === "--users").length;
+  assert.equal(userOccurrences, 2, "two --users entries");
+  assert.ok(args.includes("a"));
+  assert.ok(args.includes("b"));
+  assert.ok(!args.includes("null"), "literal 'null' must not appear");
+});
+
 test("toCliArgs: unknown arg key is ignored, not passed", () => {
   const args = toCliArgs(sendCmd, {
     chat_id: "oc",

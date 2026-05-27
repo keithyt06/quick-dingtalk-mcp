@@ -47,6 +47,7 @@ export function toCliArgs(command, args = {}) {
     } else if (def.type === "stringArray" || def.type === "stringSlice") {
       const arr = Array.isArray(val) ? val : [val];
       for (const v of arr) {
+        if (v == null || v === "") continue;
         out.push(cliFlag, String(v));
       }
     } else {
