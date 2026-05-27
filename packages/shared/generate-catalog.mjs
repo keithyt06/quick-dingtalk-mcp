@@ -80,13 +80,43 @@ function parseFlags(helpText) {
   return flags;
 }
 
+// Cobra --help structure for any command/leaf:
+//   <short description, 1 line>
+//   <blank>
+//   [<long description, 1+ lines, may span paragraphs separated by blanks>]
+//   <blank>
+//   Usage:
+//     ...
+//   Aliases / Examples / Available Commands / Flags / ...
+//
+// We harvest from the first non-blank line until we hit a section header
+// (Usage / Aliases / Examples / Available Commands / Flags / Global Flags /
+// Use ...). Paragraph blank lines inside the body are collapsed to single
+// spaces so the result fits one MCP description string.
 function extractDescription(helpText) {
+  const SECTION_HEADER = /^(Usage|Aliases|Examples|Available Commands|Flags|Global Flags|Use ".*" for more)/i;
   const lines = helpText.split("\n");
-  for (const line of lines) {
-    const t = line.trim();
-    if (t && !/^Usage:/i.test(t)) return t;
+  let started = false;
+  const buf = [];
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!started) {
+      if (!line) continue;
+      if (SECTION_HEADER.test(line)) break;
+      started = true;
+      buf.push(line);
+      continue;
+    }
+    if (SECTION_HEADER.test(line)) break;
+    if (!line) {
+      // paragraph separator inside the body — collapse to single space
+      if (buf.length && buf[buf.length - 1] !== "") buf.push("");
+      continue;
+    }
+    buf.push(line);
   }
-  return "";
+  // collapse internal blank markers to " " and join
+  return buf.map((s) => (s === "" ? " " : s)).join(" ").replace(/\s+/g, " ").trim();
 }
 
 async function walk(path) {
