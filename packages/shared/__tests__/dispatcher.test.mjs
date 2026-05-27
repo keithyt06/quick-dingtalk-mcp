@@ -111,6 +111,22 @@ test("toCliArgs: missing required flag throws InputError", () => {
   );
 });
 
+test("toCliArgs: required non-bool field with boolean false treated as missing", () => {
+  // LLM-supplied false on a string-typed required field would otherwise
+  // String()-ify to "false" and silently pass to dws.
+  const cmd = {
+    path: ["x"],
+    flags: [{ name: "title", type: "string", required: true }],
+  };
+  assert.throws(() => toCliArgs(cmd, { title: false }), /InputError/);
+  // numeric 0 is a legitimate value (e.g. limit=0) and must NOT be rejected
+  const okCmd = {
+    path: ["x"],
+    flags: [{ name: "limit", type: "int", required: true }],
+  };
+  assert.doesNotThrow(() => toCliArgs(okCmd, { limit: 0 }));
+});
+
 test("toCliArgs: stringArray drops null/undefined/empty elements", () => {
   const cmd = {
     path: ["x"],

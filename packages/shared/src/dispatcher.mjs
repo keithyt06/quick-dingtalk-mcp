@@ -30,8 +30,14 @@ export function toCliArgs(command, args = {}) {
   for (const f of command.flags || []) {
     if (!f.required) continue;
     const argKey = normalizeFlagName(f.name);
-    if (args[argKey] == null || args[argKey] === "") {
+    const v = args[argKey];
+    if (v == null || v === "") {
       throw new InputError(`missing required arg: ${argKey}`);
+    }
+    // non-bool fields: a literal `false` from an LLM is almost always a
+    // missing-value bug, not the intent to pass the string "false". Reject.
+    if (f.type !== "bool" && v === false) {
+      throw new InputError(`missing required arg: ${argKey} (got false; expected ${f.type || "string"})`);
     }
   }
 
