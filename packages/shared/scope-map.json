@@ -1,0 +1,4 @@
+{
+  "_version": "1",
+  "_note": "PLACEHOLDER scope-map. All scope arrays empty until Plan 1 Task 3 PAT PoC fills them with actual DingTalk scope strings; keys must match catalog.json after Task 4 catalog-driven derivation. Do not commit real scope strings without PoC verification — current spec §4.4 names (Contact.User.Read etc.) are Feishu-style placeholders, not DingTalk's actual scope naming convention."
+}
