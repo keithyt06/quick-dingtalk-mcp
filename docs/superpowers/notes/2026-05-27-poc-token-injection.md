@@ -2,7 +2,7 @@
 
 **日期**:2026-05-27
 **目的**:为 Plan 2 的 inject-token.mjs 实现选定方案(D1 加密文件 / D2 子命令 / D3 fork) + 为 Plan 1 Task 10 errors.mjs 提供 PAT 错误格式实测 fixture
-**dws 版本**:`?`(运行 `dws --version` 后填实际值)
+**dws 版本**:`v1.0.32` (b86ff7e2, 2026-05-25)
 
 ---
 
@@ -152,22 +152,61 @@ dws 源码相关路径:
 
 ### PAT 错误格式实测(spec §4.4 验证)
 
-**触发方式**:(少勾 scope 登录 / 调无权限命令 / 未触发——任选一种实际发生的)
+**实测部分完成** — 在沙箱机器上实测了**未认证状态**下的错误形态(用 `DINGTALK_DWS_AGENTCODE=quick-dingtalk-mcp dws calendar event list`)。已认证状态下的真 PAT 错误(scope 不足)需要在你本人钉钉账号上跑,目前**未触发**。
 
-**实际 exit code**:`?`
+#### 已实测:未认证错误(不是 PAT 但同源结构)
 
-**实际 stderr**(手工核对无 token 残留后贴):
+**触发方式**:沙箱机器装了 dws v1.0.32 但未登录,直接调一个钉钉命令。
 
+**实际 exit code**:**2**(不是 spec 假设的 4)
+
+**实际 stderr**(valid JSON,嵌套结构):
+
+```json
+{
+  "error": {
+    "actions": ["dws auth login"],
+    "category": "auth",
+    "code": 2,
+    "hint": "运行 'dws auth login' 完成登录后重试",
+    "message": "未登录，请先执行 dws auth login",
+    "reason": "not_authenticated"
+  }
+}
 ```
-(贴)
+
+#### 待实测:PAT scope 不足错误
+
+需要在登录态下触发(`dws auth login --device --force` 时少勾某 scope,然后调那个 scope 的命令),把 stderr 贴回这里。
+
+**强烈推测**(基于上面已实测的同源结构):PAT 错误大概率也是嵌套形态:
+
+```json
+{
+  "error": {
+    "category": "permission",
+    "code": <某个值,可能是 4 也可能不是>,
+    "reason": "permission_required" | "missing_scope" | ...,
+    "message": "...",
+    "hint": "...",
+    "missing_scopes": ["..."],   // 字段名待确认
+    "actions": [...]
+  }
+}
 ```
 
-**判定**:
-- valid JSON?✅ / ❌(若 ❌,errors.mjs 走文本启发式解析)
-- 字段名匹配 spec §4.4 假设?✅ / 部分 / ❌(若不匹配,列实际字段名)
-- `missing_scopes` 字符串实例:`...`(直接抄进 scope-map.json)
+#### 判定(基于已实测部分)
 
-**给 Task 10 的指示**:fixture 直接用本节贴的实测 stderr,不再用 spec §4.4 的假设 JSON。
+- valid JSON?**✅**
+- 字段名匹配 spec §4.4 假设?**❌** — spec 是扁平 `{error: "permission_required", missing_scopes: [...]}`,实测是嵌套 `{error: {category, code, reason, message, hint, actions, ...}}`
+- `missing_scopes` 字符串实例:**未拿到**(需登录态触发 PAT)
+
+#### 给 Task 10 的指示
+
+errors.mjs **已**改为防御性双形态适配 (commit `<待补>`):
+- `parsePATError` 既识别 spec §4.4 的扁平格式(后向兼容,万一某些 dws 版本是这样),也识别实测的嵌套 `{error: {reason: "permission_required"|"missing_scope", missing_scopes: [...]}}` 格式。
+- `isPATExitCode` 改为接受任意非 0 的 exit code,从 `parsePATError` 解出来的内容里看 `category === "permission"` 来判定是否是真 PAT。
+- fixture 替换为这份实测的未认证 JSON 作为 sanity 基线;PAT 真触发到时再加一条 fixture。
 
 ---
 
@@ -175,4 +214,4 @@ dws 源码相关路径:
 
 - `DWS_CONFIG_DIR=<path>` 改默认 `~/.dws` → 已确认
 - `DWS_DISABLE_KEYCHAIN=1` → 强制走 file-based DEK,容器必备
-- `DINGTALK_DWS_AGENTCODE=<id>` → 触发 host-owned PAT 模式,权限错走 stderr JSON + exit=4(**待 Step 7 实测确认**)
+- `DINGTALK_DWS_AGENTCODE=<id>` → 触发 host-owned PAT 模式,权限错走 stderr JSON。**实测**:exit code 不是固定 4,unauthenticated 是 2,PAT 不足待登录态确认。stderr 是嵌套 `{error: {category, code, reason, message, hint, actions}}` 而非 spec §4.4 的扁平假设。
