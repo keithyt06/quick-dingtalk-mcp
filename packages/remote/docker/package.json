@@ -1,0 +1,9 @@
+{
+  "name": "qdm-remote-docker",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "main": "server.js",
+  "engines": { "node": ">=20" },
+  "dependencies": {}
+}

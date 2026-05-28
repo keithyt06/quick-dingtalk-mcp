@@ -1,0 +1,15 @@
+node_modules
+**/node_modules
+*.log
+.DS_Store
+.git
+.gitignore
+__tests__
+**/__tests__
+infra
+lambda
+scripts
+cdk.out
+dist
+*.test.mjs
+*.test.ts
