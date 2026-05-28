@@ -1,10 +1,91 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="600" height="120" viewBox="0 0 600 120">
-  <rect width="600" height="120" fill="#fafafa" stroke="#999" stroke-width="1"/>
-  <text x="300" y="50" font-family="monospace" font-size="14" text-anchor="middle" fill="#222">
-    quick-dingtalk-mcp v0.2 — Local + Remote Architecture
-  </text>
-  <text x="300" y="78" font-family="monospace" font-size="11" text-anchor="middle" fill="#666">
-    placeholder — full diagram filled in by Plan 2 Task 22
-  </text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="700" viewBox="0 0 1000 700">
+  <style>
+    .box { fill: #fff; stroke: #333; stroke-width: 1.2; }
+    .local { fill: #e8f5e9; }
+    .remote { fill: #e3f2fd; }
+    .shared { fill: #fff3e0; }
+    .arrow { stroke: #333; stroke-width: 1; fill: none; marker-end: url(#a); }
+    text { font-family: 'Helvetica', sans-serif; font-size: 12px; fill: #222; }
+    .title { font-size: 16px; font-weight: bold; }
+    .label { font-size: 11px; fill: #555; }
+  </style>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#333"/></marker></defs>
+
+  <text x="500" y="30" class="title" text-anchor="middle">quick-dingtalk-mcp v0.2 — Local + Remote Architecture</text>
+
+  <!-- Local stack -->
+  <rect x="40" y="60" width="380" height="600" rx="8" class="box local"/>
+  <text x="230" y="85" class="title" text-anchor="middle">Local (single-user, stdio)</text>
+
+  <rect x="80" y="120" width="300" height="50" class="box"/>
+  <text x="230" y="145" text-anchor="middle">MCP host (Q Desktop / Claude / Cursor)</text>
+
+  <rect x="80" y="220" width="300" height="50" class="box"/>
+  <text x="230" y="245" text-anchor="middle">packages/local/server.mjs (stdio)</text>
+
+  <rect x="80" y="320" width="300" height="50" class="box"/>
+  <text x="230" y="345" text-anchor="middle">dws CLI (~/.dws/ tokens)</text>
+
+  <rect x="80" y="420" width="300" height="50" class="box"/>
+  <text x="230" y="445" text-anchor="middle">DingTalk mcp-gw</text>
+
+  <path class="arrow" d="M230,170 L230,220"/>
+  <path class="arrow" d="M230,270 L230,320"/>
+  <path class="arrow" d="M230,370 L230,420"/>
+
+  <!-- Remote stack -->
+  <rect x="580" y="60" width="380" height="600" rx="8" class="box remote"/>
+  <text x="770" y="85" class="title" text-anchor="middle">Remote (multi-user, HTTPS, AgentCore)</text>
+
+  <rect x="620" y="110" width="300" height="40" class="box"/>
+  <text x="770" y="135" text-anchor="middle">Quick Desktop</text>
+
+  <rect x="620" y="170" width="300" height="40" class="box"/>
+  <text x="770" y="195" text-anchor="middle">CloudFront (+ optional WAF us-east-1)</text>
+
+  <rect x="620" y="230" width="300" height="40" class="box"/>
+  <text x="770" y="255" text-anchor="middle">API Gateway HTTP</text>
+
+  <rect x="620" y="290" width="300" height="40" class="box"/>
+  <text x="770" y="315" text-anchor="middle">mcp-middleware Lambda (HMAC + SigV4)</text>
+
+  <rect x="620" y="350" width="300" height="50" class="box"/>
+  <text x="770" y="370" text-anchor="middle">AgentCore Runtime</text>
+  <text x="770" y="388" class="label" text-anchor="middle">docker/server.js (Streamable HTTP :8000)</text>
+
+  <rect x="620" y="420" width="300" height="50" class="box"/>
+  <text x="770" y="440" text-anchor="middle">dws CLI (per-user DWS_CONFIG_DIR)</text>
+  <text x="770" y="458" class="label" text-anchor="middle">/var/dws/users/&lt;uid&gt;</text>
+
+  <rect x="620" y="490" width="300" height="40" class="box"/>
+  <text x="770" y="515" text-anchor="middle">DingTalk mcp-gw</text>
+
+  <rect x="620" y="550" width="140" height="80" class="box"/>
+  <text x="690" y="575" text-anchor="middle">token-refresh-shim</text>
+  <text x="690" y="592" class="label" text-anchor="middle">PKCE + EventBridge</text>
+  <text x="690" y="608" class="label" text-anchor="middle">SM + DDB + SSM</text>
+
+  <rect x="780" y="550" width="140" height="80" class="box"/>
+  <text x="850" y="575" text-anchor="middle">alarm-webhook</text>
+  <text x="850" y="592" class="label" text-anchor="middle">SNS → DingTalk</text>
+  <text x="850" y="608" class="label" text-anchor="middle">(optional)</text>
+
+  <path class="arrow" d="M770,150 L770,170"/>
+  <path class="arrow" d="M770,210 L770,230"/>
+  <path class="arrow" d="M770,270 L770,290"/>
+  <path class="arrow" d="M770,330 L770,350"/>
+  <path class="arrow" d="M770,400 L770,420"/>
+  <path class="arrow" d="M770,470 L770,490"/>
+
+  <!-- Shared layer -->
+  <rect x="350" y="350" width="200" height="120" rx="8" class="box shared"/>
+  <text x="450" y="375" class="title" text-anchor="middle">packages/shared</text>
+  <text x="450" y="400" class="label" text-anchor="middle">catalog.json (261 cmd)</text>
+  <text x="450" y="418" class="label" text-anchor="middle">tier1.json (30 + 6 alias)</text>
+  <text x="450" y="436" class="label" text-anchor="middle">dispatcher / errors / search</text>
+  <text x="450" y="454" class="label" text-anchor="middle">scope-map.json</text>
+
+  <path class="arrow" d="M380,425 L350,425"/>
+  <path class="arrow" d="M550,395 L620,395"/>
 </svg>
