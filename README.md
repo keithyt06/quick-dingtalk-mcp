@@ -115,17 +115,40 @@ DingTalk requires every message to have a **title** (unlike Feishu). The catalog
 
 If you want a personal-assistant feel where the LLM *is you*, use this. If you want clearly-marked automation, use the bot/webhook routes.
 
+## Remote (v0.2 Plan 2 — ready)
+
+Multi-user shared deployment to AWS Bedrock AgentCore. One-liner deploy:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/keithyt06/quick-dingtalk-mcp/main/packages/remote/scripts/install.sh | bash
+~/.quick-dingtalk-mcp/packages/remote/scripts/deploy.sh
+```
+
+After deploy, `deploy.sh` prints:
+- First-time authorize URL (send to teammates to open in browser)
+- Quick Desktop MCP endpoint (paste into Quick Desktop config)
+
+Detailed docs:
+- [Quick Desktop integration](./docs/remote-quick-desktop.md)
+- [Security model](./docs/remote-security.md)
+- [Observability](./docs/remote-observability.md)
+- [Operations runbook](./docs/remote-operations.md)
+- [FAQ](./docs/remote-faq.md)
+- [Cost estimates](./docs/remote-cost.md)
+
+> Plan 2 ships the deployment capability itself (container + 3 Lambdas + 3 CDK stacks + ops/deploy scripts + docs). Before going live, Plan 3 will run a token-injection PoC + real OAuth e2e test.
+
 ### Status
 
-**v0.2-pre — under active migration to monorepo + remote.**
+**v0.2 — Local + Remote both shipped, awaiting first production deploy.**
 
-- ✅ **Local v0.2 (this release)**: monorepo refactor done; 38 tools (30 tier1 + 6 aliases + discover/invoke); shared catalog covers all 261 dws v1.0.32 commands; smoke test passes; v0.1 user-identity verification still holds.
-- 🚧 **Remote v0.2 (next, Plan 2)**: AWS Bedrock AgentCore + per-user OAuth, multi-user shared deployment. PoC for dws token injection in progress (see `docs/superpowers/notes/2026-05-27-poc-token-injection.md`).
-- 📅 **Production hardening (Plan 3)**: observability dashboard + 10 alarms + WAF + comprehensive docs.
+- ✅ **Local v0.2** (this release): monorepo refactor done; 38 tools (30 tier1 + 6 aliases + discover/invoke); shared catalog covers all 261 dws v1.0.32 commands; smoke test passes; v0.1 user-identity verification still holds.
+- ✅ **Remote v0.2** (Plan 2 — ready, awaiting first cdk deploy): AWS Bedrock AgentCore + per-user OAuth + multi-user shared deployment. Code complete; Lambda unit tests + CDK synth + docker build all green. PoC for dws token injection deferred to Plan 3 (see `docs/superpowers/notes/2026-05-27-poc-token-injection.md`).
+- 📅 **Production hardening (Plan 3)**: live PoC for token injection D1/D2/D3, scope strings backfill, observability dashboard tuning, multi-region.
 
 Roadmap, in priority order:
-1. Plan 2: Remote stack (container + 3 Lambdas + 3 CDK stacks + scripts)
-2. Plan 3: Production hardening
+1. ~~Plan 2: Remote stack~~ ✅
+2. Plan 3: PoC validation + production hardening
 3. v0.3: drop v0.1 aliases; image / file / interactive card support
 
 ### Acknowledgments
