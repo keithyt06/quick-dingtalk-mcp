@@ -193,8 +193,168 @@ export class OAuthStack extends Stack {
     this._attachDashboardAndAlarms(props.alarmThresholds, props.alarmPreset);
   }
 
-  // T16 fills this in (Dashboard + 10 alarms).
-  private _attachDashboardAndAlarms(_thresholds: any, _preset: string): void {
-    void _thresholds; void _preset;
+  // T16: Dashboard 5 sections / 12 widgets + 10 Alarms.
+  private _attachDashboardAndAlarms(thresholds: any, preset: string): void {
+    const t = thresholds[preset] || thresholds.standard;
+    const snsAction = new cwa.SnsAction(this.snsTopic);
+
+    const COMPARISON_MAP: Record<string, cw.ComparisonOperator> = {
+      GreaterThanThreshold: cw.ComparisonOperator.GREATER_THAN_THRESHOLD,
+      GreaterThanOrEqualToThreshold: cw.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      LessThanThreshold: cw.ComparisonOperator.LESS_THAN_THRESHOLD,
+      LessThanOrEqualToThreshold: cw.ComparisonOperator.LESS_THAN_OR_EQUAL_TO_THRESHOLD,
+    };
+
+    const lambdaErrorRate = (fn: lambda.Function, _key: string): cw.IMetric =>
+      new cw.MathExpression({
+        expression: "errors / IF(invocations = 0, 1, invocations)",
+        usingMetrics: {
+          errors: fn.metricErrors(),
+          invocations: fn.metricInvocations(),
+        },
+        label: `${fn.functionName} error rate`,
+      });
+
+    const alarmDefs: Array<{ id: string; metric: cw.IMetric; key: string; description: string }> = [
+      {
+        id: "ApiGw5xxPersistent",
+        metric: new cw.Metric({ namespace: "AWS/ApiGateway", metricName: "5XXError", statistic: "Sum" }),
+        key: "api_gw_5xx_persistent",
+        description: "API Gateway 5xx errors persistent",
+      },
+      {
+        id: "MiddlewareErrorRate",
+        metric: lambdaErrorRate(this.mcpMiddleware, "middleware_error_rate"),
+        key: "middleware_error_rate",
+        description: "mcp-middleware error rate",
+      },
+      {
+        id: "LambdaThrottle",
+        metric: this.mcpMiddleware.metricThrottles(),
+        key: "lambda_throttle",
+        description: "Any Lambda throttle event",
+      },
+      {
+        id: "RefreshFailureUsers",
+        metric: new cw.Metric({ namespace: "QuickDingtalkMcp/Remote", metricName: "RefreshFailureUsers", statistic: "Sum" }),
+        key: "refresh_failure_users",
+        description: "EventBridge refresh failed users",
+      },
+      {
+        id: "RuntimeInvocationFailure",
+        metric: new cw.Metric({ namespace: "AWS/BedrockAgentCore", metricName: "InvocationErrors", statistic: "Sum" }),
+        key: "runtime_invocation_failure",
+        description: "AgentCore Runtime invocation failures",
+      },
+      {
+        id: "Container5xx",
+        metric: new cw.Metric({ namespace: "QuickDingtalkMcp/Runtime", metricName: "Container5xx", statistic: "Sum" }),
+        key: "container_5xx",
+        description: "Container 5xx (server.js)",
+      },
+      {
+        id: "ServerBusyPersistent",
+        metric: new cw.Metric({ namespace: "QuickDingtalkMcp/Runtime", metricName: "ServerBusy", statistic: "Sum" }),
+        key: "server_busy_persistent",
+        description: "Semaphore queue full",
+      },
+      {
+        id: "SmThrottle",
+        metric: new cw.Metric({ namespace: "AWS/SecretsManager", metricName: "ThrottledRequests", statistic: "Sum" }),
+        key: "sm_throttle",
+        description: "Secrets Manager throttle",
+      },
+      {
+        id: "DdbThrottle",
+        metric: new cw.Metric({ namespace: "AWS/DynamoDB", metricName: "ThrottledRequests", statistic: "Sum" }),
+        key: "ddb_throttle",
+        description: "DynamoDB throttle",
+      },
+      {
+        id: "OAuthCallbackFailureRate",
+        metric: lambdaErrorRate(this.tokenRefreshShim, "oauth_callback_failure_rate"),
+        key: "oauth_callback_failure_rate",
+        description: "OAuth callback failure rate",
+      },
+    ];
+
+    for (const def of alarmDefs) {
+      const cfg = t[def.key];
+      const comparison = COMPARISON_MAP[cfg.comparison] || cw.ComparisonOperator.GREATER_THAN_THRESHOLD;
+      const alarm = new cw.Alarm(this, `Alarm${def.id}`, {
+        alarmName: `qdm-remote-${def.id}`,
+        metric: def.metric,
+        threshold: cfg.threshold,
+        evaluationPeriods: cfg.evaluation_periods,
+        comparisonOperator: comparison,
+        treatMissingData: cw.TreatMissingData.NOT_BREACHING,
+        alarmDescription: def.description,
+      });
+      alarm.addAlarmAction(snsAction);
+    }
+
+    // ---- Dashboard (5 sections, 12 widgets) ----
+    const dashboard = new cw.Dashboard(this, "Dashboard", { dashboardName: this.dashboardName });
+    // Section 1: Ingress traffic
+    dashboard.addWidgets(
+      new cw.GraphWidget({
+        title: "API GW 4xx/5xx", width: 12,
+        left: [new cw.Metric({ namespace: "AWS/ApiGateway", metricName: "4XXError", statistic: "Sum" })],
+        right: [new cw.Metric({ namespace: "AWS/ApiGateway", metricName: "5XXError", statistic: "Sum" })],
+      }),
+      new cw.GraphWidget({
+        title: "API GW Latency p50/p99", width: 12,
+        left: [
+          new cw.Metric({ namespace: "AWS/ApiGateway", metricName: "Latency", statistic: "p50" }),
+          new cw.Metric({ namespace: "AWS/ApiGateway", metricName: "Latency", statistic: "p99" }),
+        ],
+      }),
+    );
+    // Section 2: Lambda health
+    dashboard.addWidgets(
+      new cw.GraphWidget({
+        title: "mcp-middleware errors / invocations", width: 12,
+        left: [this.mcpMiddleware.metricErrors(), this.mcpMiddleware.metricInvocations()],
+      }),
+      new cw.GraphWidget({
+        title: "mcp-middleware duration p99", width: 12,
+        left: [this.mcpMiddleware.metricDuration({ statistic: "p99" })],
+      }),
+    );
+    // Section 3: OAuth flow
+    dashboard.addWidgets(
+      new cw.GraphWidget({
+        title: "token-refresh-shim errors", width: 12,
+        left: [this.tokenRefreshShim.metricErrors(), this.tokenRefreshShim.metricInvocations()],
+      }),
+      new cw.GraphWidget({
+        title: "Refresh failure users", width: 12,
+        left: [new cw.Metric({ namespace: "QuickDingtalkMcp/Remote", metricName: "RefreshFailureUsers", statistic: "Sum" })],
+      }),
+    );
+    // Section 4: Runtime container
+    dashboard.addWidgets(
+      new cw.GraphWidget({
+        title: "AgentCore invocation count / errors", width: 12,
+        left: [new cw.Metric({ namespace: "AWS/BedrockAgentCore", metricName: "InvocationCount", statistic: "Sum" })],
+        right: [new cw.Metric({ namespace: "AWS/BedrockAgentCore", metricName: "InvocationErrors", statistic: "Sum" })],
+      }),
+      new cw.GraphWidget({
+        title: "Container semaphore depth + busy", width: 12,
+        left: [new cw.Metric({ namespace: "QuickDingtalkMcp/Runtime", metricName: "QueueDepth", statistic: "Average" })],
+        right: [new cw.Metric({ namespace: "QuickDingtalkMcp/Runtime", metricName: "ServerBusy", statistic: "Sum" })],
+      }),
+    );
+    // Section 5: Business errors
+    dashboard.addWidgets(
+      new cw.GraphWidget({
+        title: "PAT triggers", width: 12,
+        left: [new cw.Metric({ namespace: "QuickDingtalkMcp/Runtime", metricName: "PATTrigger", statistic: "Sum" })],
+      }),
+      new cw.GraphWidget({
+        title: "dws non-zero exits", width: 12,
+        left: [new cw.Metric({ namespace: "QuickDingtalkMcp/Runtime", metricName: "DwsNonZeroExit", statistic: "Sum" })],
+      }),
+    );
   }
 }
