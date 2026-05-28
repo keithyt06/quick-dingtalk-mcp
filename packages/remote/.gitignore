@@ -5,3 +5,4 @@ dist/
 .env
 .env.local
 docker/dws-tarball/
+docker/shared/
