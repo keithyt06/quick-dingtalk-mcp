@@ -157,6 +157,13 @@ export class OAuthStack extends Stack {
       priceClass: cf.PriceClass.PRICE_CLASS_100,
     });
 
+    // OAUTH_BASE_URL is the public CloudFront URL — Lambda needs it to build
+    // redirect_uri for DingTalk OAuth. Available only after distribution is
+    // constructed, so we addEnvironment() after-the-fact.
+    const oauthBaseUrl = `https://${this.distribution.distributionDomainName}`;
+    this.tokenRefreshShim.addEnvironment("OAUTH_BASE_URL", oauthBaseUrl);
+    this.mcpMiddleware.addEnvironment("OAUTH_BASE_URL", oauthBaseUrl);
+
     // --- EventBridge schedule: refresh every 30min ---
     new events.Rule(this, "RefreshSchedule", {
       schedule: events.Schedule.rate(Duration.minutes(30)),
@@ -205,15 +212,11 @@ export class OAuthStack extends Stack {
       LessThanOrEqualToThreshold: cw.ComparisonOperator.LESS_THAN_OR_EQUAL_TO_THRESHOLD,
     };
 
-    const lambdaErrorRate = (fn: lambda.Function, _key: string): cw.IMetric =>
-      new cw.MathExpression({
-        expression: "errors / IF(invocations = 0, 1, invocations)",
-        usingMetrics: {
-          errors: fn.metricErrors(),
-          invocations: fn.metricInvocations(),
-        },
-        label: `${fn.functionName} error rate`,
-      });
+    // Use absolute error count instead of error rate (errors/invocations).
+    // CloudFormation rejects MathExpression with implicit IDs in some setups
+    // (`Error in expression 'expr_1': Invalid syntax`). lark-mcp-on-agentcore
+    // also uses metricErrors() — we follow the same simpler pattern.
+    const lambdaErrors = (fn: lambda.Function): cw.IMetric => fn.metricErrors();
 
     const alarmDefs: Array<{ id: string; metric: cw.IMetric; key: string; description: string }> = [
       {
@@ -224,7 +227,7 @@ export class OAuthStack extends Stack {
       },
       {
         id: "MiddlewareErrorRate",
-        metric: lambdaErrorRate(this.mcpMiddleware, "middleware_error_rate"),
+        metric: lambdaErrors(this.mcpMiddleware),
         key: "middleware_error_rate",
         description: "mcp-middleware error rate",
       },
@@ -272,7 +275,7 @@ export class OAuthStack extends Stack {
       },
       {
         id: "OAuthCallbackFailureRate",
-        metric: lambdaErrorRate(this.tokenRefreshShim, "oauth_callback_failure_rate"),
+        metric: lambdaErrors(this.tokenRefreshShim),
         key: "oauth_callback_failure_rate",
         description: "OAuth callback failure rate",
       },
