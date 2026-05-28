@@ -3,7 +3,7 @@
 # NOTE: the digest below is a placeholder — replace before first real build:
 #   docker pull node:20-bookworm-slim
 #   docker inspect --format='{{index .RepoDigests 0}}' node:20-bookworm-slim
-FROM node:20-bookworm-slim@sha256:0e0c8e7e4f1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e AS base
+FROM node:20-bookworm-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0 AS base
 
 # --- args / build-time pins ---
 ARG DWS_VERSION=1.0.32
@@ -40,19 +40,19 @@ RUN set -eux; \
 # --- app dir ---
 WORKDIR /app
 
-# Copy package manifests first for layer caching.
-COPY docker/package.json ./package.json
+# Build context is packages/ (set by RuntimeStack DockerImageAsset).
+# Layer 1: package manifest for cache busting.
+COPY remote/docker/package.json ./package.json
 
-# Build context is packages/remote/ (set by RuntimeStack DockerImageAsset).
-# Copy shared/ package next to docker/ contents so server.js can import it.
+# Layer 2: shared package (catalog + sources).
 COPY shared/catalog.json ./shared/catalog.json
 COPY shared/tier1.json ./shared/tier1.json
 COPY shared/scope-map.json ./shared/scope-map.json
 COPY shared/src ./shared/src
 
-# Copy server + inject-token. server.js resolves shared via ./shared/src/index.mjs.
-COPY docker/server.js ./server.js
-COPY docker/inject-token.mjs ./inject-token.mjs
+# Layer 3: server + inject-token. server.js resolves shared via ./shared/src/index.mjs.
+COPY remote/docker/server.js ./server.js
+COPY remote/docker/inject-token.mjs ./inject-token.mjs
 
 # --- runtime user ---
 # node:20-bookworm-slim ships a `node` user (uid 1000). Use it.

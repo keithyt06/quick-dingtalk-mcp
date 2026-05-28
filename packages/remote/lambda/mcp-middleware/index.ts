@@ -13,7 +13,18 @@ const AGENTCORE_SERVICE = "bedrock-agentcore";
 const TIMEOUT_MS = parseInt(process.env.UPSTREAM_TIMEOUT_MS || "25000", 10);
 const TOKEN_NEAR_EXPIRY_SEC = 60; // if expires_at - now < 60s, return 503
 
-const ssm = new SSMClient({ region: REGION });
+let ssm: { send: (cmd: any) => Promise<any> } = new SSMClient({ region: REGION });
+let credsProvider: () => Promise<{ accessKeyId: string; secretAccessKey: string; sessionToken?: string }> = defaultProvider();
+
+export function _setClients(c: {
+  ssm?: { send: (cmd: any) => Promise<any> };
+  credsProvider?: () => Promise<{ accessKeyId: string; secretAccessKey: string; sessionToken?: string }>;
+}): void {
+  if (c.ssm) ssm = c.ssm;
+  if (c.credsProvider) credsProvider = c.credsProvider;
+  cachedHmacKey = null;
+}
+
 let cachedHmacKey: string | null = null;
 
 async function getHmacKey(): Promise<string> {
@@ -76,7 +87,7 @@ export const handler = async (
   }, hmacKey);
 
   // Sign request to AgentCore Runtime
-  const creds = await defaultProvider()();
+  const creds = await credsProvider();
   let signed;
   try {
     signed = await signRequest({

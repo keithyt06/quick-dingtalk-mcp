@@ -20,10 +20,10 @@ export class RuntimeStack extends Stack {
     super(scope, id, props);
 
     // --- Docker image asset ---
-    // Build context: packages/remote (so the Dockerfile can COPY ../shared)
+    // Build context: packages/ (so Dockerfile can COPY remote/docker + shared)
     const image = new ecr_assets.DockerImageAsset(this, "Image", {
-      directory: join(__dirname, "..", ".."),
-      file: "docker/Dockerfile",
+      directory: join(__dirname, "..", "..", ".."),
+      file: "remote/docker/Dockerfile",
       platform: ecr_assets.Platform.LINUX_AMD64,
       buildArgs: {
         DWS_VERSION: "1.0.32",

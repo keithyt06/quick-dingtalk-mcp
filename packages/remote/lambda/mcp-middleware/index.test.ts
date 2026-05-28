@@ -1,5 +1,4 @@
-// packages/remote/lambda/mcp-middleware/index.test.ts
-import { test, beforeEach, mock } from "node:test";
+import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 
 process.env.AWS_REGION = "us-east-1";
@@ -9,27 +8,23 @@ process.env.UPSTREAM_TIMEOUT_MS = "1000";
 
 const HMAC_KEY = "00".repeat(32);
 
-mock.module("@aws-sdk/client-ssm", {
-  namedExports: {
-    SSMClient: class { async send(_cmd: any) { return { Parameter: { Value: HMAC_KEY } }; } },
-    GetParameterCommand: class { input: any; constructor(i: any) { this.input = i; } },
-  },
-});
-
-mock.module("@aws-sdk/credential-provider-node", {
-  namedExports: { defaultProvider: () => async () => ({ accessKeyId: "AKIA", secretAccessKey: "x" }) },
-});
+const fakeSsm = {
+  send: async (_cmd: any) => ({ Parameter: { Value: HMAC_KEY } }),
+};
+const fakeCredsProvider = async () => ({ accessKeyId: "AKIA", secretAccessKey: "x" });
 
 const smStore = new Map<string, string>();
-const smFake = { send: async (cmd: any) => {
-  const op = cmd.constructor.name;
-  if (op === "GetSecretValueCommand") {
-    const v = smStore.get(cmd.input.SecretId);
-    if (!v) { const e: any = new Error("not found"); e.name = "ResourceNotFoundException"; throw e; }
-    return { SecretString: v };
-  }
-  throw new Error("unsupported");
-} };
+const smFake = {
+  send: async (cmd: any) => {
+    const op = cmd.constructor.name;
+    if (op === "GetSecretValueCommand") {
+      const v = smStore.get(cmd.input.SecretId);
+      if (!v) { const e: any = new Error("not found"); e.name = "ResourceNotFoundException"; throw e; }
+      return { SecretString: v };
+    }
+    throw new Error("unsupported");
+  },
+};
 
 const fetchCalls: any[] = [];
 let fetchImpl: (url: string, init?: any) => Promise<Response> = async () => new Response("ok", { status: 200 });
@@ -39,7 +34,9 @@ const sm = await import("../shared/sm-client.ts");
 sm._setClient(smFake);
 const { signMcpToken } = await import("../shared/hmac.ts");
 
-const { handler } = await import("./index.ts");
+const mod = await import("./index.ts");
+mod._setClients({ ssm: fakeSsm, credsProvider: fakeCredsProvider });
+const { handler } = mod;
 
 beforeEach(() => {
   smStore.clear();

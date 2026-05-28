@@ -1,3 +1,8 @@
+// alarm-webhook reads DINGTALK_WEBHOOK_URL at module-init time. To test both
+// "URL set" and "URL empty" without mock.module, we read the URL fresh in each
+// test by re-assigning a local re-import. The handler closure captures a
+// module-level constant — so we use child-process style isolation: fresh
+// import URL with a query-string cache buster.
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 
@@ -13,15 +18,16 @@ function snsEvent(message: any): any {
 
 test("no webhook URL → returns sent=0, doesn't throw", async () => {
   delete process.env.DINGTALK_WEBHOOK_URL;
-  const { handler } = await import("./index.ts");
-  const r = await handler(snsEvent({ AlarmName: "test", NewStateValue: "ALARM", NewStateReason: "x" }), {} as any);
+  // Use cache-buster to force module re-evaluation with empty env
+  const mod = await import(`./index.ts?cache=${Date.now()}-no-url`);
+  const r = await mod.handler(snsEvent({ AlarmName: "test", NewStateValue: "ALARM", NewStateReason: "x" }), {} as any);
   assert.equal(r.sent, 0);
   assert.equal(fetchCalls.length, 0);
 });
 
 test("with webhook URL → posts markdown card", async () => {
   process.env.DINGTALK_WEBHOOK_URL = "https://oapi.dingtalk.com/robot/send?access_token=fake";
-  const mod = await import(`./index.ts?cache=${Date.now()}`); // bust module cache
+  const mod = await import(`./index.ts?cache=${Date.now()}-with-url`);
   const r = await mod.handler(snsEvent({
     AlarmName: "MiddlewareErrorRate",
     NewStateValue: "ALARM",
@@ -38,7 +44,7 @@ test("with webhook URL → posts markdown card", async () => {
 test("with webhook URL but webhook 5xx → sent=0, doesn't throw", async () => {
   process.env.DINGTALK_WEBHOOK_URL = "https://oapi.dingtalk.com/robot/send?access_token=fake";
   fetchImpl = async () => new Response("oops", { status: 500 });
-  const mod = await import(`./index.ts?cache=${Date.now() + 1}`);
+  const mod = await import(`./index.ts?cache=${Date.now()}-5xx`);
   const r = await mod.handler(snsEvent({ AlarmName: "x", NewStateValue: "ALARM", NewStateReason: "y" }), {} as any);
   assert.equal(r.sent, 0);
 });

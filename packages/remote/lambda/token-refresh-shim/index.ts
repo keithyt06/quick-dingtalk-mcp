@@ -24,8 +24,15 @@ const REFRESH_BUFFER_SEC = 60 * 60; // refresh if expires_at - now < 60min
 const DEFAULT_SCOPES = (process.env.DEFAULT_SCOPES || "openid").split(",").map(s => s.trim());
 const REFRESH_FAILURE_METRIC_NAMESPACE = "QuickDingtalkMcp/Remote";
 
-const ddb = new DynamoDBClient({ region: REGION });
-const ssm = new SSMClient({ region: REGION });
+let ddb: { send: (cmd: any) => Promise<any> } = new DynamoDBClient({ region: REGION });
+let ssm: { send: (cmd: any) => Promise<any> } = new SSMClient({ region: REGION });
+
+export function _setClients(c: { ddb?: { send: (cmd: any) => Promise<any> }; ssm?: { send: (cmd: any) => Promise<any> } }): void {
+  if (c.ddb) ddb = c.ddb;
+  if (c.ssm) ssm = c.ssm;
+  cachedHmacKey = null;
+  cachedAppSecret = null;
+}
 
 let cachedHmacKey: string | null = null;
 let cachedAppSecret: string | null = null;

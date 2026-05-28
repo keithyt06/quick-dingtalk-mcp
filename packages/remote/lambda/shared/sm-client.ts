@@ -5,7 +5,7 @@ import {
   CreateSecretCommand,
   DeleteSecretCommand,
   ListSecretsCommand,
-} from "@aws-sdk/client-secretsmanager";
+} from "@aws-sdk/client-secrets-manager";
 
 export type UserToken = {
   access_token: string;

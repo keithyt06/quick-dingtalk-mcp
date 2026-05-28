@@ -13,11 +13,11 @@
   },
   "dependencies": {
     "@quick-dingtalk-mcp/shared": "*",
-    "@aws-sdk/client-secretsmanager": "^3.600.0",
+    "@aws-sdk/client-secrets-manager": "^3.600.0",
     "@aws-sdk/client-dynamodb": "^3.600.0",
     "@aws-sdk/client-ssm": "^3.600.0",
     "@aws-sdk/client-sns": "^3.600.0",
-    "@aws-sdk/signature-v4": "^3.600.0",
+    "@aws-sdk/signature-v4": "^3.370.0",
     "@aws-sdk/protocol-http": "^3.370.0",
     "@aws-sdk/credential-provider-node": "^3.600.0",
     "@aws-crypto/sha256-js": "^5.2.0"
