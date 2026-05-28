@@ -143,7 +143,7 @@ Detailed docs:
 **v0.2 — Local + Remote both shipped, awaiting first production deploy.**
 
 - ✅ **Local v0.2** (this release): monorepo refactor done; 38 tools (30 tier1 + 6 aliases + discover/invoke); shared catalog covers all 261 dws v1.0.32 commands; smoke test passes; v0.1 user-identity verification still holds.
-- ✅ **Remote v0.2** (Plan 2 — ready, awaiting first cdk deploy): AWS Bedrock AgentCore + per-user OAuth + multi-user shared deployment. Code complete; Lambda unit tests + CDK synth + docker build all green. PoC for dws token injection deferred to Plan 3 (see `docs/superpowers/notes/2026-05-27-poc-token-injection.md`).
+- ✅ **Remote v0.2** (Plan 2 — done): container + 3 Lambda + 3 CDK stack + scripts + 6 docs ready. Sandbox-runnable tests all pass (50/50: shared 33 + docker 10 + hmac 7). The remaining 26 tests (sigv4, sm-client, token-refresh-shim, mcp-middleware, alarm-webhook, infra/synth) and the cdk synth + docker build gates require `npm install` of `@aws-sdk/*` and a docker daemon — run on a regular dev machine to validate. PoC for dws token injection deferred to Plan 3 (see `docs/superpowers/notes/2026-05-27-poc-token-injection.md`).
 - 📅 **Production hardening (Plan 3)**: live PoC for token injection D1/D2/D3, scope strings backfill, observability dashboard tuning, multi-region.
 
 Roadmap, in priority order:
