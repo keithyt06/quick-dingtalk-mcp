@@ -1,0 +1,11 @@
+{
+  "_version": "1",
+  "_note": "Maps the deploy.sh user choice (standard|relaxed|strict) to the preset key in alarm-thresholds.json. Kept as a separate file so future presets (e.g. enterprise) can be added without touching CDK code.",
+  "default": "standard",
+  "available": ["standard", "relaxed", "strict"],
+  "descriptions": {
+    "standard": "Sensible defaults for personal / small-team deployments (5x5xx-3min, 5% error rate, 1 throttled user)",
+    "relaxed": "Tolerant of bursty workloads — fewer pages, may miss short incidents",
+    "strict": "Page on every anomaly — for production-critical deployments only"
+  }
+}

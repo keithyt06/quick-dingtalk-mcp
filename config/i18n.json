@@ -1,0 +1,116 @@
+{
+  "_version": "1",
+  "_note": "Used by packages/remote/scripts/{install,deploy,ops,teardown}.sh and alarm-webhook Lambda card text. Add a key here before referencing it; missing keys fall back to the English value.",
+  "deploy": {
+    "title": {
+      "zh": "quick-dingtalk-mcp Remote 部署",
+      "en": "quick-dingtalk-mcp Remote Deployment"
+    },
+    "prompt_region": {
+      "zh": "部署目标 region (固定 us-east-1):",
+      "en": "Target region (locked to us-east-1):"
+    },
+    "prompt_dingtalk_app_id": {
+      "zh": "钉钉开放平台 AppKey:",
+      "en": "DingTalk Open Platform AppKey:"
+    },
+    "prompt_dingtalk_app_secret": {
+      "zh": "钉钉开放平台 AppSecret (输入隐藏):",
+      "en": "DingTalk Open Platform AppSecret (hidden input):"
+    },
+    "prompt_alarm_webhook": {
+      "zh": "钉钉告警群 Webhook URL (留空跳过 alarm-webhook Lambda):",
+      "en": "DingTalk alarm group webhook URL (empty = skip alarm-webhook Lambda):"
+    },
+    "prompt_alarm_preset": {
+      "zh": "告警阈值 preset (standard|relaxed|strict, 默认 standard):",
+      "en": "Alarm threshold preset (standard|relaxed|strict, default standard):"
+    },
+    "prompt_enable_waf": {
+      "zh": "是否启用 WAF (y/N, 默认 N):",
+      "en": "Enable WAF (y/N, default N):"
+    },
+    "deploying_oauth": {
+      "zh": "部署 OAuthStack...",
+      "en": "Deploying OAuthStack..."
+    },
+    "deploying_runtime": {
+      "zh": "部署 RuntimeStack (含 docker build & ECR push)...",
+      "en": "Deploying RuntimeStack (includes docker build & ECR push)..."
+    },
+    "deploying_waf": {
+      "zh": "部署 WAFStack...",
+      "en": "Deploying WAFStack..."
+    },
+    "summary_oauth_url": {
+      "zh": "首次授权 URL (发给用户):",
+      "en": "First-time authorization URL (send to user):"
+    },
+    "summary_mcp_endpoint": {
+      "zh": "Quick Desktop MCP 端点:",
+      "en": "Quick Desktop MCP endpoint:"
+    },
+    "done": {
+      "zh": "部署完成。",
+      "en": "Deployment finished."
+    }
+  },
+  "ops": {
+    "list_users_header": {
+      "zh": "已注册用户 (按 SM secret 名称列):",
+      "en": "Registered users (listed by SM secret name):"
+    },
+    "revoke_confirm": {
+      "zh": "确定撤销用户 %s 的 token? (y/N):",
+      "en": "Revoke user %s's token? (y/N):"
+    },
+    "revoke_done": {
+      "zh": "已撤销。SM secret %s 删除完成。",
+      "en": "Revoked. SM secret %s deleted."
+    },
+    "refresh_now": {
+      "zh": "强制刷新所有用户 token...",
+      "en": "Force-refreshing all user tokens..."
+    },
+    "logs_tail": {
+      "zh": "尾随 token-refresh-shim 日志 (Ctrl+C 退出):",
+      "en": "Tailing token-refresh-shim logs (Ctrl+C to exit):"
+    }
+  },
+  "teardown": {
+    "warning": {
+      "zh": "将销毁所有 stack (RuntimeStack -> OAuthStack -> WAFStack)。继续? (y/N):",
+      "en": "Will destroy all stacks (RuntimeStack -> OAuthStack -> WAFStack). Continue? (y/N):"
+    },
+    "preserved_secrets_note": {
+      "zh": "Secrets Manager 用户 token (按 7 天恢复期保留) 和 ECR 镜像不会自动删。手动清理: aws secretsmanager delete-secret --force-delete-without-recovery / aws ecr delete-repository --force",
+      "en": "User-token Secrets Manager entries (kept under 7-day recovery window) and ECR images are NOT auto-deleted. Manual cleanup: aws secretsmanager delete-secret --force-delete-without-recovery / aws ecr delete-repository --force"
+    }
+  },
+  "alarm_card": {
+    "title": {
+      "zh": "[quick-dingtalk-mcp] 告警: %s",
+      "en": "[quick-dingtalk-mcp] Alarm: %s"
+    },
+    "field_state": {
+      "zh": "状态",
+      "en": "State"
+    },
+    "field_metric": {
+      "zh": "指标",
+      "en": "Metric"
+    },
+    "field_threshold": {
+      "zh": "阈值",
+      "en": "Threshold"
+    },
+    "field_actual": {
+      "zh": "实际",
+      "en": "Actual"
+    },
+    "field_link": {
+      "zh": "查看 Dashboard",
+      "en": "Open Dashboard"
+    }
+  }
+}
