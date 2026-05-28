@@ -1,0 +1,7 @@
+node_modules/
+cdk.out/
+dist/
+*.log
+.env
+.env.local
+docker/dws-tarball/

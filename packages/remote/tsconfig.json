@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "allowImportingTsExtensions": false,
+    "noEmit": true,
+    "isolatedModules": true,
+    "lib": ["ES2022"],
+    "types": ["node", "aws-lambda"],
+    "baseUrl": ".",
+    "paths": {
+      "@quick-dingtalk-mcp/shared": ["../shared/src/index.mjs"],
+      "@quick-dingtalk-mcp/shared/*": ["../shared/*"]
+    }
+  },
+  "include": ["lambda/**/*.ts", "infra/**/*.ts"],
+  "exclude": ["node_modules", "cdk.out", "dist"]
+}

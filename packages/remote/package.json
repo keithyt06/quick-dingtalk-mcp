@@ -1,0 +1,34 @@
+{
+  "name": "@quick-dingtalk-mcp/remote",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build:lambda": "node ./scripts-internal/build-lambda.mjs",
+    "test": "node --test --experimental-strip-types lambda/**/*.test.ts docker/__tests__/*.test.mjs infra/__tests__/*.test.ts",
+    "synth": "cd infra && cdk synth --all",
+    "build:image": "docker build docker -t qdm-remote:plan2",
+    "lint:sh": "shellcheck scripts/*.sh"
+  },
+  "dependencies": {
+    "@quick-dingtalk-mcp/shared": "*",
+    "@aws-sdk/client-secretsmanager": "^3.600.0",
+    "@aws-sdk/client-dynamodb": "^3.600.0",
+    "@aws-sdk/client-ssm": "^3.600.0",
+    "@aws-sdk/client-sns": "^3.600.0",
+    "@aws-sdk/signature-v4": "^3.600.0",
+    "@aws-sdk/protocol-http": "^3.370.0",
+    "@aws-sdk/credential-provider-node": "^3.600.0",
+    "@aws-crypto/sha256-js": "^5.2.0"
+  },
+  "devDependencies": {
+    "aws-cdk-lib": "^2.150.0",
+    "constructs": "^10.3.0",
+    "aws-cdk": "^2.150.0",
+    "@types/aws-lambda": "^8.10.140",
+    "@types/node": "^20.12.0",
+    "typescript": "^5.4.0",
+    "esbuild": "^0.21.0"
+  }
+}
