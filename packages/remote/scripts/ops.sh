@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2005,SC2016,SC2059
 set -euo pipefail
 SUB="${1:-}"
 shift || true

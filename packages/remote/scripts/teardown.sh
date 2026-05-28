@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2005
 set -euo pipefail
 DRY_RUN=0
 LANG_KEY=zh

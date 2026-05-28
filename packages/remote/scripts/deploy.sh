@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # quick-dingtalk-mcp Remote — interactive deploy.
 # Reads config/i18n.json for prompt strings (zh/en); language auto-detected from $LANG.
+# shellcheck disable=SC2005,SC2016
 set -euo pipefail
 
 DRY_RUN=0
