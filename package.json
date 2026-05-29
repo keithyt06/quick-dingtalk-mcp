@@ -1,17 +1,18 @@
 {
   "name": "quick-dingtalk-mcp",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Lightweight MCP server that wraps the official DingTalk Workspace CLI (dws), exposing user-identity DingTalk messaging to any MCP host — Amazon Quick Desktop, Claude Desktop, Cursor, Continue, etc.",
   "type": "module",
-  "main": "server.mjs",
+  "main": "src/index.mjs",
   "bin": {
-    "quick-dingtalk-mcp": "./server.mjs"
+    "quick-dingtalk-mcp": "./src/index.mjs"
   },
   "engines": {
     "node": ">=18"
   },
   "scripts": {
-    "start": "node server.mjs",
+    "start": "node src/index.mjs",
+    "start:legacy": "node server.mjs",
     "smoke": "bash scripts/smoke.sh"
   },
   "dependencies": {

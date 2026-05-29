@@ -34,12 +34,26 @@ Under the hood, `dws` is itself a thin client to DingTalk's MCP gateway (`mcp-gw
 
 ### Quick start
 
+**🚀 One-line install (recommended):**
+
+```bash
+# macOS / Linux
+curl -fsSL https://raw.githubusercontent.com/EMP-WGJJ/quick-dingtalk-mcp/safe-mode/scripts/setup.sh | bash
+
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/EMP-WGJJ/quick-dingtalk-mcp/safe-mode/scripts/setup.ps1 | iex
+```
+
+This auto-installs Node.js, dws CLI, clones the project (safe-mode branch), and guides you through DingTalk login. See [INSTALL.md](./INSTALL.md) for details.
+
+**Manual install:**
+
 ```bash
 # 1. Install DingTalk's official CLI
 npm install -g dingtalk-workspace-cli
 
-# 2. Clone & install
-git clone https://github.com/keithyt06/quick-dingtalk-mcp.git
+# 2. Clone & install (safe-mode branch)
+git clone -b safe-mode https://github.com/EMP-WGJJ/quick-dingtalk-mcp.git
 cd quick-dingtalk-mcp
 npm install
 
@@ -152,12 +166,28 @@ Roadmap, in priority order:
 
 ### 5 步上手
 
+**🚀 一键部署（推荐）:**
+
+```bash
+# macOS / Linux
+curl -fsSL https://raw.githubusercontent.com/EMP-WGJJ/quick-dingtalk-mcp/safe-mode/scripts/setup.sh | bash
+
+# Windows PowerShell
+irm https://raw.githubusercontent.com/EMP-WGJJ/quick-dingtalk-mcp/safe-mode/scripts/setup.ps1 | iex
+
+# Windows 双击: 下载 zip 后双击 scripts\setup.bat
+```
+
+自动安装 Node.js、dws、项目依赖并引导登录（默认 safe-mode 分支）。详见 [INSTALL.md](./INSTALL.md)。
+
+**手动安装：**
+
 ```bash
 # 1. 装钉钉官方 CLI
 npm install -g dingtalk-workspace-cli
 
-# 2. clone 本项目 + 装依赖
-git clone https://github.com/keithyt06/quick-dingtalk-mcp.git
+# 2. clone 本项目 + 装依赖 (safe-mode 分支)
+git clone -b safe-mode https://github.com/EMP-WGJJ/quick-dingtalk-mcp.git
 cd quick-dingtalk-mcp
 npm install
 

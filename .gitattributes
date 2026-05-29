@@ -1,0 +1,35 @@
+# ═══════════════════════════════════════════════════════════════
+# 跨平台行尾 & 编码处理
+# 确保脚本在 Win/Mac/Linux 上都能正确运行
+# ═══════════════════════════════════════════════════════════════
+
+# 默认自动处理
+* text=auto
+
+# Shell 脚本: 强制 LF (Unix 行尾)
+# 即使在 Windows 上 checkout 也保持 LF，否则 bash 会报错
+*.sh text eol=lf
+
+# Windows 脚本: 强制 CRLF
+# BAT/CMD 在部分 Windows 版本需要 CRLF 才能正确执行
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# PowerShell: 强制 CRLF (Windows 原生编码)
+*.ps1 text eol=crlf
+
+# JavaScript/Node.js: LF (跨平台通用)
+*.js text eol=lf
+*.mjs text eol=lf
+*.cjs text eol=lf
+*.json text eol=lf
+
+# 文档: 自动处理
+*.md text
+*.txt text
+
+# 二进制文件: 不做行尾转换
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
