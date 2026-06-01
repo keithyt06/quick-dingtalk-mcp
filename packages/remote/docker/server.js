@@ -243,6 +243,24 @@ async function handleMcpRequest(req, res) {
     return;
   }
 
+  // Parse the (newline-delimited) JSON-RPC payload up front so we can honour the
+  // Streamable HTTP contract: a POST whose body is ONLY notifications/responses
+  // (no JSON-RPC requests with an `id`) must get 202 Accepted with no body — NOT
+  // an SSE stream. Quick (and any spec-compliant client) sends
+  // `notifications/initialized` right after initialize; replying to it with an
+  // SSE body makes the client treat the handshake as failed → stays "Configured,
+  // not Connected". (MCP 2025-03-26 transports §"Sending Messages to the Server".)
+  const rpcs = body.split("\n").map(l => l.trim()).filter(Boolean).map(l => {
+    try { return JSON.parse(l); } catch { return null; }
+  }).filter(Boolean);
+  const hasRequest = rpcs.some(r => r && r.id !== undefined && r.method !== undefined);
+  if (rpcs.length > 0 && !hasRequest) {
+    res.statusCode = 202;
+    res.setHeader("Cache-Control", "no-store");
+    res.end();
+    return;
+  }
+
   let configDir;
   await sem.acquire();
   activeRequests++;
@@ -253,29 +271,42 @@ async function handleMcpRequest(req, res) {
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("Connection", "keep-alive");
+  // Streamable HTTP session id. Stable per user (visible-ASCII only, per spec).
+  // Clients echo this on subsequent requests; returning it on every response is
+  // allowed and lets the client confirm the session is established.
+  res.setHeader("Mcp-Session-Id", userId);
 
   try {
     configDir = await provisionUserConfig(userId, accessToken);
     const env = {
       ...process.env,
       DWS_CONFIG_DIR: configDir,
+      // dws stores the encrypted token blob + DEK under StorageDir, which
+      // defaults to ~/.local/share/dws-cli — NOT under DWS_CONFIG_DIR. Without
+      // a per-user DWS_KEYCHAIN_DIR every user's token collides in one dir
+      // (cross-user token bleed). Pin it under the per-user config dir.
+      // (dws keychain_linux.go: StorageDir honours DWS_KEYCHAIN_DIR override.)
+      DWS_KEYCHAIN_DIR: configDir,
       DINGTALK_DWS_AGENTCODE: AGENTCODE,
       DWS_DISABLE_KEYCHAIN: "1",
     };
 
-    // body is newline-delimited JSON-RPC requests
-    const lines = body.split("\n").map(l => l.trim()).filter(Boolean);
-    for (const line of lines) {
+    // Iterate the pre-parsed JSON-RPC messages (see top of handler).
+    for (const rpc of rpcs) {
       if (aborted) break;
-      let rpc;
-      try { rpc = JSON.parse(line); } catch { continue; }
+      // Skip any notifications/responses mixed into a batch that also has
+      // requests — only requests (with an id) get a response.
+      if (rpc.id === undefined) continue;
       let response;
       try {
         if (rpc.method === "initialize") {
+          // Echo the client's requested protocolVersion when present (Quick
+          // negotiates 2025-03-26); fall back to a known-good version.
+          const clientPV = rpc.params && rpc.params.protocolVersion;
           response = {
             jsonrpc: "2.0", id: rpc.id,
             result: {
-              protocolVersion: "2024-11-05",
+              protocolVersion: clientPV || "2025-03-26",
               capabilities: { tools: {} },
               serverInfo: { name: "quick-dingtalk-mcp-remote", version: "0.2.0" },
             },

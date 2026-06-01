@@ -5,12 +5,22 @@
 //   teardownUserConfig(userId) -> Promise<void>
 //
 // Strategies (selected by env INJECT_STRATEGY = d1 | d2 | d3, default d2):
-//   D2: spawn `dws auth import --token=<jwt>` to let dws write its own config.
-//       Assumes such a subcommand exists; verified by Plan 3 PoC.
-//   D1: write encrypted oauth-token.enc directly using dws's file-DEK format.
-//       STUB — Plan 3 implements after reading internal/keychain/file_dek.go.
+//   D2: spawn `dws auth login --token <accessToken>` to let dws write its own
+//       config. VERIFIED against dws v1.0.32 (2026-06-01): `--token` mode is a
+//       pure local write — it does NOT call DingTalk to validate, it just
+//       persists the access token to DWS_CONFIG_DIR/identity.json +
+//       DWS_KEYCHAIN_DIR/dws-cli/{auth-token.enc,dek}. Perfect for injection:
+//       mcp-middleware already fetched the real access token from Secrets
+//       Manager, so the container just needs to drop it onto disk. Refresh is
+//       owned by token-refresh-shim + EventBridge (which hold the refresh_token
+//       in Secrets Manager); dws here is a stateless executor.
+//       NOTE: v1.0.32 `dws auth` has only login/logout/reset/status — there is
+//       NO `auth import`/`auth export`. The earlier `auth import --token`
+//       assumption was wrong.
+//   D1: write encrypted auth-token.enc + dek directly using dws's file-DEK
+//       format. STUB — only needed if we ever must avoid spawning dws.
 //   D3: depend on a forked dws supporting DWS_USER_ACCESS_TOKEN env var.
-//       STUB — Plan 3 implements if D2 + D1 both fail.
+//       STUB — not needed now that D2 works.
 //
 // See docs/superpowers/notes/2026-05-27-poc-token-injection.md for D1 details.
 
@@ -57,16 +67,20 @@ async function spawnDws(args, env, timeoutMs = 10_000) {
   });
 }
 
-// --- D2: spawn `dws auth import --token=<jwt>` ---
+// --- D2: spawn `dws auth login --token <accessToken>` ---
 async function provisionD2(userId, accessToken) {
   const dir = userDir(userId);
   await mkdir(dir, { recursive: true });
   const env = {
     ...process.env,
     DWS_CONFIG_DIR: dir,
+    // Pin the keychain (token blob + DEK) under this user's dir too — otherwise
+    // dws writes to ~/.local/share/dws-cli and all users collide. Must match
+    // the env server.js passes when it later execs dws for this user.
+    DWS_KEYCHAIN_DIR: dir,
     DWS_DISABLE_KEYCHAIN: "1",
   };
-  await spawnDws(["auth", "import", "--token", accessToken], env);
+  await spawnDws(["auth", "login", "--token", accessToken], env);
   return dir;
 }
 

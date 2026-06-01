@@ -135,6 +135,11 @@ export const handler = async (
     headers: {
       "content-type": upstream.headers.get("content-type") || "application/json",
       "cache-control": "no-store",
+      // AgentCore strips the container's own response headers (it only returns
+      // its x-amzn-* set), so the Streamable HTTP `Mcp-Session-Id` the container
+      // sets never reaches the client. Re-inject it here at the edge. Stable per
+      // user (visible-ASCII), which is all the client needs to bind the session.
+      "mcp-session-id": userId,
     },
     body: upstreamText,
   };

@@ -93,13 +93,19 @@ test("/authorize: returns 302 with proper state in DDB", async () => {
   assert.match(loc, /^https:\/\/login\.dingtalk\.com/);
   assert.match(loc, /code_challenge=/);
   assert.match(loc, /state=/);
+  // dws forces prompt=consent and scope=openid corpid (auth/endpoints.go).
+  assert.match(loc, /prompt=consent/);
+  const scope = new URL(loc).searchParams.get("scope");
+  assert.equal(scope, "openid corpid");
   assert.equal(ddbStore.size, 1);
 });
 
 test("/callback: full happy path → SM stores token + html with mcp token", async () => {
   fetchImpl = async (url) => {
     if (url.includes("oauth2/userAccessToken")) {
-      return new Response(JSON.stringify({ accessToken: "AT", refreshToken: "RT", expireIn: 7200, scope: "openid" }), { status: 200 });
+      // dws v1.0.32 returns `expiresIn` (with s). Use it here so the test
+      // pins the correct field name, not the old `expireIn` typo.
+      return new Response(JSON.stringify({ accessToken: "AT", refreshToken: "RT", expiresIn: 7200, scope: "openid" }), { status: 200 });
     }
     if (url.includes("contact/users/me")) {
       return new Response(JSON.stringify({ unionId: "uid-42" }), { status: 200 });
@@ -119,6 +125,12 @@ test("/callback: full happy path → SM stores token + html with mcp token", asy
   assert.equal((r as any).statusCode, 200);
   assert.match(((r as any).body as string), /Bearer /);
   assert.equal(smStore.size, 1);
+  // expires_at must be a finite number ~now+7200, not NaN (the `expireIn` typo
+  // produced now+undefined = NaN → every later call looked "near expiry").
+  const stored = JSON.parse([...smStore.values()][0]);
+  const now = Math.floor(Date.now() / 1000);
+  assert.ok(Number.isFinite(stored.expires_at), "expires_at must be finite");
+  assert.ok(stored.expires_at > now + 7000 && stored.expires_at <= now + 7200, `expires_at ~now+7200, got ${stored.expires_at - now}`);
 });
 
 test("/callback: unknown state → 400", async () => {

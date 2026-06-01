@@ -11,11 +11,11 @@ process.env.INJECT_STRATEGY = "d2";
 const tmpRoot = await mkdtemp(join(tmpdir(), "qdm-inject-"));
 process.env.DWS_CONFIG_DIR_BASE = tmpRoot;
 
-// Provide a fake dws binary that records the args + exits 0.
+// Provide a fake dws binary that records the args + the keychain env + exits 0.
 const fakeDws = join(tmpRoot, "dws-fake.sh");
 await writeFile(
   fakeDws,
-  `#!/usr/bin/env bash\nset -e\necho "FAKE-DWS: $*" >> "${tmpRoot}/dws-calls.log"\nexit 0\n`,
+  `#!/usr/bin/env bash\nset -e\necho "FAKE-DWS: $* | KEYCHAIN=\${DWS_KEYCHAIN_DIR:-} | CONFIG=\${DWS_CONFIG_DIR:-}" >> "${tmpRoot}/dws-calls.log"\nexit 0\n`,
 );
 await chmod(fakeDws, 0o755);
 process.env.DWS_BIN = fakeDws;
@@ -36,11 +36,23 @@ test("provisionUserConfig: idempotent — second call same uid returns same path
   assert.equal(a, b);
 });
 
-test("provisionUserConfig (d2): spawns dws auth import with --token", async () => {
+test("provisionUserConfig (d2): spawns dws auth login with --token", async () => {
+  // VERIFIED 2026-06-01 against dws v1.0.32: the injection command is
+  // `dws auth login --token <at>` (a pure local write), NOT `auth import`
+  // (which does not exist in v1.0.32).
   await provisionUserConfig("user-2", "jwt-xyz");
   const log = await readFile(`${tmpRoot}/dws-calls.log`, "utf8");
-  assert.match(log, /auth import/);
+  assert.match(log, /auth login/);
   assert.match(log, /--token jwt-xyz/);
+});
+
+test("provisionUserConfig (d2): pins DWS_KEYCHAIN_DIR to the per-user dir (no cross-user token bleed)", async () => {
+  const dir = await provisionUserConfig("user-kc", "jwt-kc");
+  const log = await readFile(`${tmpRoot}/dws-calls.log`, "utf8");
+  // The line for this user must carry KEYCHAIN=<that user's dir>, matching CONFIG.
+  const line = log.split("\n").find((l) => l.includes(`CONFIG=${dir}`));
+  assert.ok(line, "expected a dws call with this user's config dir");
+  assert.match(line, new RegExp(`KEYCHAIN=${dir.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`));
 });
 
 test("teardownUserConfig: removes user dir", async () => {

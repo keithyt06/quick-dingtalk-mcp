@@ -21,7 +21,9 @@ const DINGTALK_AUTHORIZE_URL = process.env.DINGTALK_AUTHORIZE_URL || "https://lo
 const DINGTALK_TOKEN_URL = process.env.DINGTALK_TOKEN_URL || "https://api.dingtalk.com/v1.0/oauth2/userAccessToken";
 const DINGTALK_USER_ME_URL = process.env.DINGTALK_USER_ME_URL || "https://api.dingtalk.com/v1.0/contact/users/me";
 const REFRESH_BUFFER_SEC = 60 * 60; // refresh if expires_at - now < 60min
-const DEFAULT_SCOPES = (process.env.DEFAULT_SCOPES || "openid").split(",").map(s => s.trim());
+// dws v1.0.32 requests `openid corpid` by default (auth/endpoints.go: DefaultScopes).
+// `corpid` is needed for the enterprise context (corpId) most org-level APIs require.
+const DEFAULT_SCOPES = (process.env.DEFAULT_SCOPES || "openid corpid").split(/[, ]+/).map(s => s.trim()).filter(Boolean);
 const REFRESH_FAILURE_METRIC_NAMESPACE = "QuickDingtalkMcp/Remote";
 
 let ddb: { send: (cmd: any) => Promise<any> } = new DynamoDBClient({ region: REGION });
@@ -109,7 +111,12 @@ async function exchangeCodeForToken(code: string, verifier: string): Promise<{ a
   return {
     access_token: j.accessToken,
     refresh_token: j.refreshToken,
-    expires_in: j.expireIn,
+    // dws v1.0.32 parses `expiresIn` (oauth_helpers.go: parseTokenResponse);
+    // casdoor's older provider uses `expireIn`. Accept both to avoid an
+    // undefined → NaN expires_at that would make every call look near-expiry.
+    // Confirm the live field name once a real token round-trips (see
+    // docs/superpowers/notes/2026-05-30-dingtalk-oauth-field-audit.md §1.2).
+    expires_in: j.expiresIn ?? j.expireIn,
     scope: j.scope || "",
   };
 }
@@ -134,7 +141,7 @@ async function refreshAccessToken(refreshToken: string): Promise<{ access_token:
   return {
     access_token: j.accessToken,
     refresh_token: j.refreshToken,
-    expires_in: j.expireIn,
+    expires_in: j.expiresIn ?? j.expireIn, // see exchangeCodeForToken note
     scope: j.scope || "",
   };
 }
@@ -181,6 +188,12 @@ async function handleAuthorize(event: APIGatewayProxyEventV2): Promise<APIGatewa
   u.searchParams.set("response_type", "code");
   u.searchParams.set("scope", scopes.join(" "));
   u.searchParams.set("state", state);
+  // dws forces prompt=consent (auth/oauth_helpers.go: buildAuthURL) so DingTalk
+  // always shows the consent page rather than silently skipping it.
+  u.searchParams.set("prompt", "consent");
+  // NOTE: dws's own flow is NOT PKCE — it uses clientSecret direct exchange.
+  // We keep code_challenge for now; whether DingTalk accepts/requires PKCE here
+  // is pending live validation (audit note §1.3). If it rejects, drop these two.
   u.searchParams.set("code_challenge", challenge);
   u.searchParams.set("code_challenge_method", "S256");
   return { statusCode: 302, headers: { location: u.toString(), "cache-control": "no-store" }, body: "" };
