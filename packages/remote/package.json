@@ -3,10 +3,12 @@
   "version": "0.2.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=20" },
+  "engines": { "node": ">=22.6" },
   "scripts": {
     "build:lambda": "node ./scripts-internal/build-lambda.mjs",
-    "test": "node --test --experimental-strip-types lambda/**/*.test.ts docker/__tests__/*.test.mjs infra/__tests__/*.test.ts",
+    "test": "npm run test:unit && npm run test:infra",
+    "test:unit": "node --test --experimental-strip-types lambda/**/*.test.ts docker/__tests__/*.test.mjs",
+    "test:infra": "node ./scripts-internal/run-infra-tests.mjs",
     "synth": "cd infra && cdk synth --all",
     "build:image": "docker build docker -t qdm-remote:plan2",
     "lint:sh": "shellcheck scripts/*.sh"

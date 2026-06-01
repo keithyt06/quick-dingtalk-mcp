@@ -1,1 +1,3 @@
 bin/app.bundle.cjs
+# Transient esbuild output from `npm run test:infra` (run-infra-tests.mjs)
+__tests__/.*.bundle.cjs
