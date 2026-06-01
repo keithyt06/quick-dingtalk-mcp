@@ -10,7 +10,7 @@
 [![MCP](https://img.shields.io/badge/MCP-compatible-blue)](https://modelcontextprotocol.io)
 [![Status](https://img.shields.io/badge/status-v0.2.0-blue)](#status)
 
-[中文](#中文) · [English](#english)
+[English](#english) · [中文](./README_CN.md)
 
 ---
 
@@ -25,7 +25,7 @@ This project takes the opposite path: it wraps DingTalk's official CLI [`dws`](h
 ### Architecture
 
 ```
-                   Local (v0.2 ready)                       Remote (v0.2 Plan 2 — coming)
+                   Local (v0.2 ready)                       Remote (v0.2 — e2e verified)
 MCP host ──stdio──→ packages/local/server.mjs              Quick Desktop ──HTTPS──→ AWS AgentCore + Lambda
                        │                                              │
                        │ uses → packages/shared/{catalog,             │ uses same packages/shared
@@ -37,7 +37,7 @@ MCP host ──stdio──→ packages/local/server.mjs              Quick Deskt
                                                               DingTalk
 ```
 
-Under the hood, `dws` is itself a thin client to DingTalk's MCP gateway (`mcp-gw.dingtalk.com`) — which means DingTalk's server side is *already* MCP-native. This project exposes that capability over local stdio (Local) and over a managed Bedrock AgentCore runtime with per-user OAuth (Remote, Plan 2).
+Under the hood, `dws` is itself a thin client to DingTalk's MCP gateway (`mcp-gw.dingtalk.com`) — which means DingTalk's server side is *already* MCP-native. This project exposes that capability over local stdio (Local) and over a managed Bedrock AgentCore runtime with per-user OAuth (Remote).
 
 ### Quick start
 
@@ -115,9 +115,11 @@ DingTalk requires every message to have a **title** (unlike Feishu). The catalog
 
 If you want a personal-assistant feel where the LLM *is you*, use this. If you want clearly-marked automation, use the bot/webhook routes.
 
-## Remote (v0.2 Plan 2 — ready)
+## Remote (v0.2 — end-to-end verified)
 
-Multi-user shared deployment to AWS Bedrock AgentCore. One-liner deploy:
+Multi-user shared deployment to AWS Bedrock AgentCore. **One deploy serves any number of
+employees; onboarding a new user is self-service with zero code changes and no redeploy.**
+One-liner deploy:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/keithyt06/quick-dingtalk-mcp/main/packages/remote/scripts/install.sh | bash
@@ -136,19 +138,26 @@ Detailed docs:
 - [FAQ](./docs/remote-faq.md)
 - [Cost estimates](./docs/remote-cost.md)
 
-> Plan 2 ships the deployment capability itself (container + 3 Lambdas + 3 CDK stacks + ops/deploy scripts + docs). Before going live, Plan 3 will run a token-injection PoC + real OAuth e2e test.
-
 ### Status
 
-**v0.2 — Local + Remote both shipped, awaiting first production deploy.**
+**v0.2 — Local + Remote both shipped; Remote verified end-to-end with a real DingTalk account.**
 
-- ✅ **Local v0.2** (this release): monorepo refactor done; 38 tools (30 tier1 + 6 aliases + discover/invoke); shared catalog covers all 261 dws v1.0.32 commands; smoke test passes; v0.1 user-identity verification still holds.
-- ✅ **Remote v0.2** (Plan 2 — done): container + 3 Lambda + 3 CDK stack + scripts + 6 docs ready. **All three done-criteria gates green**: (1) 76/76 unit tests pass (shared 33 + docker 10 + hmac 7 + sigv4 3 + sm-client 5 + token-refresh-shim 5 + mcp-middleware 6 + alarm-webhook 3 + infra/synth 4); (2) `cdk synth` produces all 3 templates (OAuthStack 36 res + RuntimeStack 4 res + WafStack 2 res); (3) `docker build packages -f packages/remote/docker/Dockerfile -t qdm-remote:dev` succeeds (331MB image). PoC for dws token injection deferred to Plan 3 (see `docs/superpowers/notes/2026-05-27-poc-token-injection.md`).
-- 📅 **Production hardening (Plan 3)**: live PoC for token injection D1/D2/D3, scope strings backfill, observability dashboard tuning, multi-region.
+- ✅ **Local v0.2**: monorepo refactor done; 38 tools (30 tier1 + 6 aliases + discover/invoke); shared catalog covers all 261 dws v1.0.32 commands; smoke test passes; v0.1 user-identity verification still holds.
+- ✅ **Remote v0.2 — end-to-end verified (2026-06-01)**: a real DingTalk account completed `/authorize` → consent → `/callback` → MCP token → Quick Desktop (streamable-http) connected → `dingtalk_contact_user_get_self` returned the user's own identity through the full chain. Token injection is `dws auth login --token` (D2, verified, not a stub); the EventBridge auto-refresh path is verified working.
+  - Real issues found & fixed during the live bring-up (all folded back into the repo so the next `deploy.sh` works first try):
+    1. AgentCore's HTTP contract requires the container to listen on **8080** (not 8000) → 502 otherwise;
+    2. `requestHeaderConfiguration.requestHeaderAllowlist` must explicitly allow the custom identity headers, or the container never sees them (401);
+    3. the mcp-middleware → AgentCore **SigV4** signature must not fold the query string into the path (else 403 SignatureDoesNotMatch);
+    4. `secretsmanager:ListSecrets` must be granted on `Resource:*` (account-level action) or auto-refresh is denied and tokens expire (503);
+    5. server.js now satisfies the MCP Streamable HTTP handshake (`Mcp-Session-Id` header + protocol-version negotiation + 202 for notifications), else clients stay "Configured" but never Connected;
+    6. SSM params are recreated as SecureString (CloudFormation can only seed String placeholders);
+    7. the CDK app is pre-bundled to CJS (`infra/bin/app.bundle.cjs`) to sidestep the native strip-types loader's incompatibility with aws-cdk-lib's CommonJS named exports.
+  - Multi-user: one deploy serves any number of employees via self-service authorize; new users add zero code and no redeploy. See the [Quick Desktop onboarding guide](./docs/remote-quick-desktop.md).
+- 📅 **Remaining**: backfill scope-map strings, observability dashboard tuning, multi-region, custom domain.
 
 Roadmap, in priority order:
 1. ~~Plan 2: Remote stack~~ ✅
-2. Plan 3: PoC validation + production hardening
+2. ~~Plan 3: end-to-end bring-up~~ ✅ (remaining: scope-map backfill, multi-region)
 3. v0.3: drop v0.1 aliases; image / file / interactive card support
 
 ### Acknowledgments
@@ -163,57 +172,4 @@ Roadmap, in priority order:
 
 ---
 
-## 中文
-
-### 这是什么
-
-把钉钉官方 CLI（[`dws`](https://github.com/DingTalk-Real-AI/dingtalk-workspace-cli)）包成一个 MCP Server，让 Amazon Q Developer / Claude Desktop / Cursor / Continue 这些 MCP 客户端能**以你本人身份**操作钉钉消息——发出去的消息在群里显示是你，不是机器人。
-
-### 为什么不用钉钉官方 MCP
-
-钉钉官方的 [`open-dingtalk/dingtalk-mcp`](https://github.com/open-dingtalk/dingtalk-mcp) 只支持**机器人身份**。如果你想让 AI 替你 in-place 操作钉钉（比如 LLM 看你的工作群、替你发周报），机器人身份会显得很别扭——同事看到的是一个 Bot 在你的群里讲话，不是你。
-
-本项目用相反的路线：包装支持 OAuth **用户态**的 `dws`。结果是当你跟 AI 助手说"在 X 群发消息：明天会议改到 3 点"，消息出现在群里时**头像和昵称就是你本人**，跟你手动打字没区别。
-
-### 5 步上手
-
-```bash
-# 1. 装钉钉官方 CLI
-npm install -g dingtalk-workspace-cli
-
-# 2. clone 本项目 + 装依赖
-git clone https://github.com/keithyt06/quick-dingtalk-mcp.git
-cd quick-dingtalk-mcp
-npm install
-
-# 3. 登录钉钉（设备流，任何环境都能用）
-dws auth login --device
-
-# 4. 跑冒烟测试（不调真实 API）
-npm run smoke
-
-# 5. 在 MCP Host 里配置 → 见 packages/local/docs/setup.md
-```
-
-完整配置流程 → [packages/local/docs/setup.md](./packages/local/docs/setup.md)
-"用户态在群里到底显示啥" 5 分钟人工验证 → [packages/local/docs/verification.md](./packages/local/docs/verification.md)
-
-### 暴露的 38 个工具
-
-| 类别 | 数量 | 示例 | 备注 |
-|---|---|---|---|
-| **Tier1** | 30 | `dingtalk_chat_message_send` / `_list` / `_search` / `_recall`、`dingtalk_contact_user_search`、`dingtalk_calendar_event_create`、`dingtalk_doc_create`、`dingtalk_todo_task_create`、`dingtalk_ding_message_send` | 手挑常用,按工具名直接暴露 |
-| **v0.1 alias** | 6 | `dingtalk_send_message` → `dingtalk_chat_message_send` 等 | 描述带 `[deprecated, use ...]` 前缀,v0.3 删除 |
-| **兜底** | 2 | `dingtalk_discover`(关键词搜全部 catalog) + `dingtalk_invoke`(执行任意 catalog 命令) | 覆盖 dws v1.0.32 全部 261 个命令 |
-
-> 钉钉强制每条消息有 **title**（飞书没这要求）—— catalog 已在 inputSchema 里把 `title` 设为必填。
-
-### 致谢
-
-- 钉钉团队 [`dws`](https://github.com/DingTalk-Real-AI/dingtalk-workspace-cli) — 干了所有脏活，本项目只是个适配层
-- [`@modelcontextprotocol/sdk`](https://www.npmjs.com/package/@modelcontextprotocol/sdk) — MCP TypeScript SDK
-- 命名灵感来自飞书侧的 `lark-cli-mcp` 项目
-
-### 开源协议
-
-[MIT](./LICENSE) © 2026 Keith Yu
+> 中文文档见 [README_CN.md](./README_CN.md)。
