@@ -1,5 +1,5 @@
 {
-  "app": "node --experimental-strip-types bin/app.ts",
+  "app": "node bin/app.bundle.cjs",
   "watch": { "include": ["**"], "exclude": ["README.md", "cdk*.json", "**/*.d.ts", "**/*.js", "tsconfig.json", "package*.json", "yarn.lock", "node_modules", "test"] },
   "context": {
     "@aws-cdk/aws-lambda:recognizeLayerVersion": true,

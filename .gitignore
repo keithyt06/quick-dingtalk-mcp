@@ -7,3 +7,6 @@ package-lock.json
 /tmp-*/
 /dist/
 /.cache/
+# Local dev convenience symlink (absolute path); the container COPYs real files
+# from the build context instead. Not portable, must not be committed.
+packages/remote/docker/shared

@@ -87,17 +87,32 @@ cd "$ROOT/packages/remote"
 run npm install
 run npm run build:lambda
 
+# cdk.json lives in packages/remote/infra, so all `cdk` invocations run from
+# there (in a subshell to keep this script's cwd at packages/remote for the
+# SSM / boto3 steps that follow). build:lambda above produced infra/bin/
+# app.bundle.cjs, which cdk.json's `app` points at.
+cdk_deploy() { ( cd "$ROOT/packages/remote/infra" && run npx cdk "$@" ); }
+
 echo "$(i18n deploy.deploying_oauth)"
-run npx cdk deploy QdmRemoteOAuth \
+cdk_deploy deploy QdmRemoteOAuth \
   -c alarmPreset="$PRESET" \
   -c alarmWebhookUrl="$ALARM_WEBHOOK" \
   -c dingtalkAppId="$DINGTALK_APP_ID" \
   --require-approval never
 
-# Generate + write HMAC key + AppSecret to SSM
+# Generate + write HMAC key + AppSecret to SSM as SecureString.
+# CloudFormation's AWS::SSM::Parameter can only create String/StringList, so the
+# stack seeds these two as String placeholders (value REPLACE_AT_DEPLOY). You
+# cannot change a parameter's Type with `put --overwrite` (AWS rejects it), so we
+# delete the String placeholder and recreate it as SecureString.
 HMAC_KEY=$(openssl rand -hex 32)
-run aws ssm put-parameter --region us-east-1 --name "/qdm-remote/QdmRemoteOAuth/hmac-key" --value "$HMAC_KEY" --type SecureString --overwrite
-run aws ssm put-parameter --region us-east-1 --name "/qdm-remote/QdmRemoteOAuth/dingtalk-app-secret" --value "$DINGTALK_APP_SECRET" --type SecureString --overwrite
+for ssm_pair in \
+  "/qdm-remote/QdmRemoteOAuth/hmac-key=$HMAC_KEY" \
+  "/qdm-remote/QdmRemoteOAuth/dingtalk-app-secret=$DINGTALK_APP_SECRET"; do
+  ssm_name="${ssm_pair%%=*}"; ssm_val="${ssm_pair#*=}"
+  run aws ssm delete-parameter --region us-east-1 --name "$ssm_name" 2>/dev/null || true
+  run aws ssm put-parameter --region us-east-1 --name "$ssm_name" --value "$ssm_val" --type SecureString
+done
 
 if [ "$DRY_RUN" -eq 1 ]; then
   OAUTH_BASE_URL="https://placeholder"
@@ -139,7 +154,7 @@ if [ "$ONLY_OAUTH" -eq 1 ]; then
 fi
 
 echo "$(i18n deploy.deploying_runtime)"
-run npx cdk deploy QdmRemoteRuntime \
+cdk_deploy deploy QdmRemoteRuntime \
   -c alarmPreset="$PRESET" \
   -c alarmWebhookUrl="$ALARM_WEBHOOK" \
   -c dingtalkAppId="$DINGTALK_APP_ID" \
@@ -154,7 +169,7 @@ if [ "$DRY_RUN" -eq 0 ]; then
   RUNTIME_ROLE_ARN=$(aws cloudformation describe-stacks --stack-name QdmRemoteRuntime --region us-east-1 \
     --query 'Stacks[0].Outputs[?OutputKey==`RuntimeRoleArn`].OutputValue' --output text)
   echo "Creating/updating AgentCore Runtime (boto3, no CFN equivalent yet)..."
-  python3 <<PYEOF
+  RUNTIME_ARN=$(python3 <<PYEOF
 import boto3, sys
 c = boto3.client('bedrock-agentcore-control', region_name='us-east-1')
 config = {
@@ -162,38 +177,70 @@ config = {
   'roleArn': '$RUNTIME_ROLE_ARN',
   'networkConfiguration': {'networkMode': 'PUBLIC'},
   'protocolConfiguration': {'serverProtocol': 'HTTP'},
+  # AgentCore HTTP contract REQUIRES the container to listen on 0.0.0.0:8080.
+  # PORT=8000 (anything else) => the platform health-checks/invokes 8080, gets
+  # nothing, and every call returns 502.
   'environmentVariables': {
     'OAUTH_BASE_URL': '$OAUTH_BASE_URL',
-    'INJECT_STRATEGY': 'd1',
+    'INJECT_STRATEGY': 'd2',   # dws auth login --token (verified); d1 is a stub.
     'MAX_CONCURRENT': '10',
-    'PORT': '8000',
+    'PORT': '8080',
     'DINGTALK_DWS_AGENTCODE': 'quick-dingtalk-mcp',
     'DWS_DISABLE_KEYCHAIN': '1',
+  },
+  # AgentCore strips ALL inbound request headers by default. mcp-middleware
+  # passes per-user identity via these custom headers; without the allowlist the
+  # container never sees them and returns 401.
+  'requestHeaderConfiguration': {
+    'requestHeaderAllowlist': ['x-user-id', 'x-user-access-token', 'x-incr-auth-token'],
   },
 }
 try:
   resp = c.create_agent_runtime(agentRuntimeName='qdm_remote', description='quick-dingtalk-mcp Remote', **config)
-  print('Runtime created:', resp['agentRuntimeId'])
+  print(resp['agentRuntimeArn'])
 except Exception as e:
   if 'Conflict' in str(e) or 'already exists' in str(e).lower():
-    paginator = c.get_paginator('list_agent_runtimes') if hasattr(c, 'get_paginator') else None
-    runtimes = c.list_agent_runtimes()
-    for r in runtimes.get('agentRuntimes', []):
+    for r in c.list_agent_runtimes().get('agentRuntimes', []):
       if r.get('agentRuntimeName') == 'qdm_remote':
         rid = r['agentRuntimeId']
         c.update_agent_runtime(agentRuntimeId=rid, **config)
-        print('Runtime updated:', rid)
+        print(r['agentRuntimeArn'])
         sys.exit(0)
     print(f'ERROR: conflict but cannot find existing runtime: {e}', file=sys.stderr)
     sys.exit(1)
   print(f'ERROR: {e}', file=sys.stderr)
   sys.exit(1)
 PYEOF
+)
+  if [ -z "$RUNTIME_ARN" ] || [[ "$RUNTIME_ARN" == ERROR* ]]; then
+    echo "Runtime create/update failed: $RUNTIME_ARN" >&2
+    exit 1
+  fi
+  echo "Runtime ARN: $RUNTIME_ARN"
+
+  # The mcp-middleware Lambda was deployed (with OAuthStack) BEFORE the Runtime
+  # existed, so its AGENTCORE_RUNTIME_URL env is still the REPLACE_AT_DEPLOY
+  # placeholder. Build the invoke URL (ARN url-encoded as a single path segment)
+  # and patch it in now, preserving every other env var.
+  ENCODED_ARN=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$RUNTIME_ARN")
+  INVOKE_URL="https://bedrock-agentcore.us-east-1.amazonaws.com/runtimes/${ENCODED_ARN}/invocations?qualifier=DEFAULT"
+  MW_FN=$(aws cloudformation describe-stacks --stack-name QdmRemoteOAuth --region us-east-1 \
+    --query 'Stacks[0].Outputs[?OutputKey==`McpMiddlewareArn`].OutputValue' --output text)
+  echo "Patching AGENTCORE_RUNTIME_URL into mcp-middleware ($MW_FN)..."
+  python3 - "$MW_FN" "$INVOKE_URL" <<'PYENV'
+import boto3, sys
+fn, url = sys.argv[1], sys.argv[2]
+lc = boto3.client('lambda', region_name='us-east-1')
+env = lc.get_function_configuration(FunctionName=fn).get('Environment', {}).get('Variables', {})
+env['AGENTCORE_RUNTIME_URL'] = url
+lc.update_function_configuration(FunctionName=fn, Environment={'Variables': env})
+print('  AGENTCORE_RUNTIME_URL set.')
+PYENV
 fi
 
 if [ "$ENABLE_WAF_FLAG" = "true" ]; then
   echo "$(i18n deploy.deploying_waf)"
-  run npx cdk deploy QdmRemoteWaf \
+  cdk_deploy deploy QdmRemoteWaf \
     -c enableWaf=true \
     -c alarmPreset="$PRESET" \
     --require-approval never

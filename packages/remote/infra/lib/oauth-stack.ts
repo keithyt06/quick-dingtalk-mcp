@@ -90,12 +90,20 @@ export class OAuthStack extends Stack {
         "secretsmanager:PutSecretValue",
         "secretsmanager:CreateSecret",
         "secretsmanager:DeleteSecret",
-        "secretsmanager:ListSecrets",
       ],
       resources: [
         this.userTokenSecretArnPrefix,
         `arn:aws:secretsmanager:${this.region}:${this.account}:secret:quick-dingtalk-mcp/*`,
       ],
+    }));
+    // ListSecrets is an account-level action that does NOT support
+    // resource-level scoping — it MUST be granted on Resource "*", otherwise
+    // every call is denied. The EventBridge refresh path lists all user secrets
+    // to find near-expiry tokens, so without this the auto-refresh silently
+    // fails and tokens expire (clients then get 503 token-near-expiry).
+    this.tokenRefreshShim.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["secretsmanager:ListSecrets"],
+      resources: ["*"],
     }));
 
     this.mcpMiddleware = new lambda.Function(this, "McpMiddleware", {
