@@ -9,6 +9,10 @@
 
 [English](./README.md) · 中文
 
+<p align="center">
+  <img src="./docs/assets/architecture.svg" alt="quick-dingtalk-mcp 架构：Local 与 Remote MCP，都从 Amazon Quick Desktop 通到钉钉" width="100%">
+</p>
+
 ---
 
 ## 为什么需要它
@@ -84,6 +88,12 @@ echo "$(pwd)/packages/local/server.mjs"     # server 入口
 | Arguments | `server.mjs` 的绝对路径 |
 
 保存。应看到 **`quick-dingtalk-mcp · 38 tools · Connected ✅`**。
+
+连上后，让它查一下你自己，会返回你真实的钉钉身份——证明整条链路端到端打通：
+
+<p align="center">
+  <img src="./docs/assets/quick-desktop-connected.png" alt="Amazon Quick Desktop 连上 quick-dingtalk-mcp，返回用户本人的钉钉资料" width="80%">
+</p>
 
 ### 5. 试一下
 

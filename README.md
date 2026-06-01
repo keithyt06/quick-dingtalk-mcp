@@ -9,6 +9,10 @@ An MCP server that wraps DingTalk's official CLI ([`dws`](https://github.com/Din
 
 English · [中文](./README_CN.md)
 
+<p align="center">
+  <img src="./docs/assets/architecture.svg" alt="quick-dingtalk-mcp architecture: Local and Remote MCP, both from Amazon Quick Desktop to DingTalk" width="100%">
+</p>
+
 ---
 
 ## Why this exists
@@ -84,6 +88,12 @@ Then in **Amazon Quick Desktop → Settings → Capabilities → MCP → + Add M
 | Arguments | the `server.mjs` absolute path |
 
 Save. You should see **`quick-dingtalk-mcp · 38 tools · Connected ✅`**.
+
+Once connected, asking it to look you up returns your real DingTalk identity — proof the chain works end to end:
+
+<p align="center">
+  <img src="./docs/assets/quick-desktop-connected.png" alt="Amazon Quick Desktop connected to quick-dingtalk-mcp, returning the user's own DingTalk profile" width="80%">
+</p>
 
 ### 5. Try it
 
