@@ -1,187 +1,198 @@
-# quick-dingtalk-mcp（中文）
+# quick-dingtalk-mcp
 
-> **v0.2 升级提示（v0.1 用户必读）**：项目布局已改为 monorepo（`packages/local/server.mjs`）。v0.1 单文件 `server.mjs` 已不在仓库根。MCP host 配置里把 `args` 改成 `<repo>/packages/local/server.mjs`，或改用 `npx -y quick-dingtalk-mcp`。详见 [packages/local/docs/setup.md](./packages/local/docs/setup.md#v01--v02-迁移v01-用户必读)。
+> **以你*本人身份*操作钉钉 —— 从 Amazon Quick Desktop 以及任意 MCP 客户端。**
 
-> **以你本人身份，在任意 MCP 客户端里操作钉钉。**
-> 一个轻量 MCP Server，包装钉钉官方 CLI（`dws`），让 Amazon Q Developer / Claude Desktop / Cursor / Continue 能**以你的真实用户身份**收发钉钉消息——不是机器人。
+一个 MCP server，包装钉钉官方 CLI（[`dws`](https://github.com/DingTalk-Real-AI/dingtalk-workspace-cli)），让 AI 助手能**用你的真实用户身份**收发钉钉消息——群里显示的是你的头像、你的名字，而不是一个机器人。
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![MCP](https://img.shields.io/badge/MCP-compatible-blue)](https://modelcontextprotocol.io)
 
 [English](./README.md) · 中文
 
 ---
 
-## 这是什么
+## 为什么需要它
 
-把钉钉官方 CLI（[`dws`](https://github.com/DingTalk-Real-AI/dingtalk-workspace-cli)）包成一个 MCP Server，让 Amazon Q Developer / Claude Desktop / Cursor / Continue 这些 MCP 客户端能**以你本人身份**操作钉钉消息——发出去的消息在群里显示是你，不是机器人。
+钉钉官方的 MCP server（[`open-dingtalk/dingtalk-mcp`](https://github.com/open-dingtalk/dingtalk-mcp)）只能**以机器人身份**说话——同事在群里看到的是一个 Bot，不是你。对于"个人助理"这个场景，这是错的。
 
-## 为什么不用钉钉官方 MCP
+本项目走相反的路线：包装钉钉官方 CLI `dws`，它走的是**用户态 OAuth** 认证。于是当你跟助手说*"在项目群发一条：会议改到下午 3 点"*，消息会**以你本人的身份**出现在群里——和你亲手打字一模一样。
 
-钉钉官方的 [`open-dingtalk/dingtalk-mcp`](https://github.com/open-dingtalk/dingtalk-mcp) 只支持**机器人身份**。如果你想让 AI 替你 in-place 操作钉钉（比如 LLM 看你的工作群、替你发周报），机器人身份会显得很别扭——同事看到的是一个 Bot 在你的群里讲话，不是你。
+`dws` 本身就是钉钉 MCP 网关（`mcp-gw.dingtalk.com`）的瘦客户端，也就是说钉钉后端本就是 MCP-native 的。本项目用两种方式把这个能力暴露出来：
 
-本项目用相反的路线：包装支持 OAuth **用户态**的 `dws`。结果是当你跟 AI 助手说"在 X 群发消息：明天会议改到 3 点"，消息出现在群里时**头像和昵称就是你本人**，跟你手动打字没区别。
+| | **Local MCP（本地）** | **Remote MCP（远程）** |
+|---|---|---|
+| 面向谁 | 只有你，在自己机器上 | 整个团队，共享 |
+| 跑在哪 | `dws` 在你笔记本上，stdio 接客户端 | AWS Bedrock AgentCore + Lambda，HTTPS |
+| 配置成本 | `npm install` + `dws auth login`（~5 分钟） | 管理员部署一次；每个成员自助授权 |
+| 身份 | 你本机登录的 `dws` 会话 | 每用户独立 OAuth，互相隔离 |
+| 适合 | 个人用，最快上手 | 多人、需要集中审计、不想本地装东西 |
 
-## 架构
+两种方式暴露**同样的 38 个工具**（见 [工具](#工具)），共用同一份命令 catalog。
+
+---
+
+## Local MCP（本地单用户）
+
+跑在你自己机器上，通过 stdio 接进 Amazon Quick Desktop（或 Claude Desktop、Cursor）。
 
 ```
-                   Local（v0.2 可用）                      Remote（v0.2 已端到端打通）
-MCP host ──stdio──→ packages/local/server.mjs             Quick Desktop ──HTTPS──→ AWS AgentCore + Lambda
-                       │                                              │
-                       │ 用 → packages/shared/{catalog,               │ 用同一份 packages/shared
-                       │   dispatcher, errors, search}                │
-                       ▼                                              ▼
-                    dws CLI ──HTTPS──→ 钉钉              容器内运行 dws（每用户独立 DWS_CONFIG_DIR）
-                                                                       │
-                                                                       ▼
-                                                                     钉钉
+你说的话               Amazon Quick Desktop          quick-dingtalk-mcp              dws CLI                 钉钉
+"在 X 群发消息"  ──→  （MCP 客户端）──stdio──→ node packages/local/server.mjs ──exec──→ dws chat ... ──HTTPS──→ mcp-gw.dingtalk.com
 ```
 
-底层上 `dws` 本身就是钉钉 MCP 网关（`mcp-gw.dingtalk.com`）的瘦客户端——也就是说钉钉服务端**本就是 MCP-native** 的。本项目把这个能力通过本地 stdio（Local）和托管的 Bedrock AgentCore 运行时 + 每用户 OAuth（Remote）暴露出来。
-
-## 5 步上手（Local 单用户）
+### 1. 安装钉钉 CLI
 
 ```bash
-# 1. 装钉钉官方 CLI
 npm install -g dingtalk-workspace-cli
+```
 
-# 2. clone 本项目 + 装依赖
+> 你的钉钉企业需要开通 **CLI 访问**。管理员：[open-dev.dingtalk.com](https://open-dev.dingtalk.com) → "CLI 访问管理" → 启用（一次开通，全员永久生效）。普通成员遇到未开通时，登录页会引导一键申请。
+
+### 2. 拉项目
+
+```bash
 git clone https://github.com/keithyt06/quick-dingtalk-mcp.git
 cd quick-dingtalk-mcp
 npm install
-
-# 3. 登录钉钉（设备流，任何环境都能用）
-dws auth login --device
-
-# 4. 跑冒烟测试（不调真实 API）
-npm run smoke
-
-# 5. 在 MCP Host 里配置 → 见 packages/local/docs/setup.md
 ```
 
-完整配置流程 → [packages/local/docs/setup.md](./packages/local/docs/setup.md)
-"用户态在群里到底显示啥" 5 分钟人工验证 → [packages/local/docs/verification.md](./packages/local/docs/verification.md)
+### 3. 登录钉钉（以你本人）
 
-## 暴露的 38 个工具
+```bash
+dws auth login --device      # 设备流——SSH / 无头环境也能用
+```
 
-| 类别 | 数量 | 示例 | 备注 |
-|---|---|---|---|
-| **Tier1** | 30 | `dingtalk_chat_message_send` / `_list` / `_search` / `_recall`、`dingtalk_contact_user_search`、`dingtalk_calendar_event_create`、`dingtalk_doc_create`、`dingtalk_todo_task_create`、`dingtalk_ding_message_send` | 手挑常用，按工具名直接暴露 |
-| **v0.1 alias** | 6 | `dingtalk_send_message` → `dingtalk_chat_message_send` 等 | 描述带 `[deprecated, use ...]` 前缀，v0.3 删除 |
-| **兜底** | 2 | `dingtalk_discover`（关键词搜全部 catalog）+ `dingtalk_invoke`（执行任意 catalog 命令） | 覆盖 dws v1.0.32 全部 261 个命令 |
+用钉钉 App 扫码授权。**正是这一步让消息以你本人身份发出。**
 
-> 钉钉强制每条消息有 **title**（飞书没这要求）—— catalog 已在 inputSchema 里把 `title` 设为必填。
+### 4. 接入 Amazon Quick Desktop
 
-## 本地客户端配置
+先拿两个绝对路径（Quick Desktop 启动的子进程不一定继承完整 `PATH`，用绝对路径最稳——且路径**不能含空格**）：
 
-### Amazon Q Developer (Quick Desktop)
+```bash
+which node                                  # 例如 /opt/homebrew/bin/node
+echo "$(pwd)/packages/local/server.mjs"     # server 入口
+```
 
-`Settings → Capabilities → MCP → + Add MCP`：
+然后在 **Amazon Quick Desktop → Settings → Capabilities → MCP → + Add MCP**：
 
 | 字段 | 值 |
 |---|---|
-| Connection type | Local |
+| Connection type | **Local** |
 | ID | `quick-dingtalk-mcp` |
 | Name | `quick-dingtalk-mcp` |
-| Command | `node`（或 `which node` 给出的绝对路径） |
-| Arguments | `<绝对路径>/quick-dingtalk-mcp/packages/local/server.mjs` |
+| Command | `which node` 的输出 |
+| Arguments | `server.mjs` 的绝对路径 |
 
-### Claude Desktop
+保存。应看到 **`quick-dingtalk-mcp · 38 tools · Connected ✅`**。
 
-`~/Library/Application Support/Claude/claude_desktop_config.json`（macOS）：
+### 5. 试一下
 
-```json
-{
-  "mcpServers": {
-    "quick-dingtalk-mcp": {
-      "command": "node",
-      "args": ["/absolute/path/to/quick-dingtalk-mcp/packages/local/server.mjs"]
-    }
-  }
-}
+在 Quick Desktop 对话里：
+
+```
+列一下我最近的钉钉会话，然后给 chat_id=cidXXXX 发一条 markdown，
+标题"测试"，正文"hello from quick-dingtalk-mcp"。
 ```
 
-### Cursor
+完整流程（含 Claude Desktop / Cursor、故障排查、"真的是我本人吗"的人工验证）→ **[packages/local/docs/setup.md](./packages/local/docs/setup.md)**
 
-`Settings → Cursor Settings → MCP → + Add new MCP server` —— JSON 结构同上。
+---
 
-## 与其它方案对比
+## Remote MCP（远程多用户）
 
-| | 本项目 | [`open-dingtalk/dingtalk-mcp`](https://github.com/open-dingtalk/dingtalk-mcp) | 自定义机器人 webhook |
-|---|---|---|---|
-| 消息身份 | **你**（真实用户） | 机器人 | 自定义机器人 |
-| 认证 | OAuth user_access_token | 应用凭证 | Webhook URL |
-| 读历史 | ✅ | ❌（受限） | ❌ |
-| 搜索 | ✅ | ❌ | ❌ |
-| 上手成本 | ~5 分钟 | ~5 分钟 | ~1 分钟 |
-| 群内显示 | 你的头像+昵称 | 机器人头像+名 | 机器人名 |
+部署在 AWS Bedrock AgentCore 上的共享多用户版本。**一次部署支持任意多个成员**——新增一个人是自助的，零代码改动、零重新部署。
 
-想要 LLM "就是你"的个人助理体验，用本项目；想要清晰标记的自动化，用机器人/webhook 路线。
+```
+每个成员            Amazon Quick Desktop                    AWS
+授权一次  ──→  （MCP 客户端，HTTPS + Bearer）──→ CloudFront → API GW → mcp-middleware (Lambda)
+                                                     │  校验 HMAC token，加载*该用户*的钉钉 token
+                                                     ▼
+                                              AgentCore Runtime（容器内跑 dws，每用户独立配置）
+                                                     │
+                                                     ▼
+                                                   钉钉（以该成员身份发出）
+```
 
-## Remote（v0.2 — 多用户共享部署，已端到端打通）
+每个成员的钉钉 token 按 `userId` 分别用 KMS 加密存在 Secrets Manager；容器给每个用户一份隔离的 `dws` 配置。token 由定时任务自动续期，所以大家只在 24h 的 MCP 会话 token 过期时才需要重新授权一次。
 
-部署到 AWS Bedrock AgentCore 的多用户共享版本。**一次部署支持任意多个员工自助接入，新增用户零代码、零重部署。**
-
-一键部署：
+### 管理员：部署一次
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/keithyt06/quick-dingtalk-mcp/main/packages/remote/scripts/install.sh | bash
 ~/.quick-dingtalk-mcp/packages/remote/scripts/deploy.sh
 ```
 
-部署完 `deploy.sh` 会打印：
-- 首次授权 URL（发给团队成员在浏览器打开）
-- Quick Desktop MCP 端点（粘进 Quick Desktop 配置）
+`deploy.sh` 会创建全部资源（CloudFront、API Gateway、Lambda、DynamoDB、Secrets Manager、AgentCore Runtime 容器），并打印：
+- 发给成员的**授权 URL**
+- 成员粘进 Amazon Quick Desktop 的 **MCP 端点**（`https://<域名>/mcp`）
 
-### 多用户接入模型
+> 前置：一个钉钉应用（AppKey/AppSecret），并把 `<域名>/callback` 注册为其重定向 URL；`us-east-1` 的 AWS 凭证；Docker；Node ≥ 22.6。详见 [docs/remote-operations.md](./docs/remote-operations.md)。
 
-```
-管理员（一次性）              每个员工（自助 ~2 分钟）
-─────────────────            ──────────────────────────
-部署 1 套栈        ┐
-注册 1 个钉钉应用   ├──→  浏览器打开 AuthorizeUrl
-拿 CloudFront 域名  ┘         ↓ 钉钉同意页（用自己的钉钉账号）
-                              ↓ 复制返回的 Bearer token
-                          粘进自己的 Quick Desktop → 以本人身份操作钉钉
-```
+### 成员：接入 Amazon Quick Desktop（3 步自助）
 
-每个员工的钉钉 token 按 `userId` 独立加密存在 Secrets Manager；容器为每个用户开独立的 `DWS_CONFIG_DIR`。**新增员工 = 多一条记录，不动任何代码或部署。**
+1. **授权** —— 浏览器打开管理员给的 `https://<域名>/authorize`，用*你自己*的钉钉账号同意，复制返回的 `Bearer ...` token（24 小时有效）。
+2. **添加 MCP server**，在 **Amazon Quick Desktop → Settings → Capabilities → MCP → + Add MCP**：
 
-完整流程见 → **[Remote 多用户接入指南](./docs/remote-quick-desktop.md)**
+   | 字段 | 值 |
+   |---|---|
+   | Connection type | **Remote / HTTP**（`streamable-http`） |
+   | URL | `https://<域名>/mcp` |
+   | Header | `Authorization: Bearer <你的 token>` |
 
-### 详细文档
+   ```json
+   {
+     "transport": "streamable-http",
+     "url": "https://<域名>/mcp",
+     "headers": { "Authorization": "Bearer <你的 token>" },
+     "timeout": 60000
+   }
+   ```
+3. **验证** —— 说一句*"用 dingtalk 查一下我自己的资料"*，它会返回你真实的企业/部门信息。
 
-- [Quick Desktop 接入指南](./docs/remote-quick-desktop.md)
-- [安全模型](./docs/remote-security.md)
-- [可观测性](./docs/remote-observability.md)
-- [运维手册](./docs/remote-operations.md)
-- [FAQ](./docs/remote-faq.md)
-- [成本估算](./docs/remote-cost.md)
+你完全不需要碰钉钉开放平台——应用是管理员建的，你只是用自己的账号授权。
 
-## 状态
+完整接入 + 故障排查 → **[docs/remote-quick-desktop.md](./docs/remote-quick-desktop.md)**
 
-**v0.2 — Local + Remote 均已交付；Remote 已用真实钉钉账号端到端联调打通。**
+---
 
-- ✅ **Local v0.2**：monorepo 重构完成；38 工具（30 tier1 + 6 alias + discover/invoke）；shared catalog 覆盖 dws v1.0.32 全部 261 命令；冒烟测试通过；v0.1 用户态验证仍成立。
-- ✅ **Remote v0.2 — 端到端联调通过（2026-06-01）**：用真实钉钉账号走完 `/authorize` → 同意 → `/callback` → 拿 MCP token → Quick Desktop streamable-http 连上 → `dingtalk_contact_user_get_self` 以本人身份调通钉钉。token 注入定为 `dws auth login --token`（D2，已实测，非 stub）；EventBridge 自动刷新链路验证可用。
-  - 联调中发现并修复的真实问题（已回写仓库，下次 `deploy.sh` 一次成功）：
-    1. AgentCore HTTP 契约要求容器监听 **8080**（非 8000），否则 502；
-    2. `requestHeaderConfiguration.requestHeaderAllowlist` 必须显式放行 `x-user-id` 等自定义头，否则容器收不到用户身份（401）；
-    3. mcp-middleware → AgentCore 的 **SigV4 签名** path 不能含 query string（否则 403 SignatureDoesNotMatch）；
-    4. `secretsmanager:ListSecrets` 必须 `Resource:*`（账号级操作不支持资源限定），否则自动刷新被拒、token 过期返回 503；
-    5. server.js 补齐 MCP Streamable HTTP 握手（`Mcp-Session-Id` 响应头 + 协议版本协商 + 通知回 202），否则客户端停在 "Configured" 不 Connected；
-    6. SSM 参数需以 SecureString 重建（CloudFormation 的 `AWS::SSM::Parameter` 只能建 String 占位）；
-    7. CDK app 预打包为 CJS（`infra/bin/app.bundle.cjs`），绕开原生 `--experimental-strip-types` 对 aws-cdk-lib（CJS）命名导出的限制。
-- 📅 **后续（收尾项）**：scope-map 字符串回填、observability dashboard 调优、多区域、自定义域名。
+## 工具
 
-路线图（按优先级）：
-1. ~~Plan 2：Remote 栈~~ ✅
-2. ~~Plan 3：端到端联调打通~~ ✅（收尾：scope-map 回填、多区域）
-3. v0.3：删除 v0.1 alias；图片 / 文件 / 交互卡片支持
+38 个工具，Local 和 Remote 完全一致，背后的 catalog 覆盖**全部 261 个 `dws` 命令**：
+
+| 类别 | 数量 | 内容 |
+|---|---|---|
+| **命名工具** | 30 | 常用的，按名直接暴露：`dingtalk_chat_message_send` / `_list` / `_search` / `_recall` / `_reply` / `_forward`、`dingtalk_contact_user_search` / `_get_self`、`dingtalk_calendar_event_create`、`dingtalk_doc_create` / `_read`、`dingtalk_todo_task_create`、`dingtalk_ding_message_send` …… |
+| **discover + invoke** | 2 | `dingtalk_discover`（关键词搜全部 catalog）+ `dingtalk_invoke`（执行它返回的任意命令）——不撑爆工具列表就能触达全部 261 个命令 |
+| **alias** | 6 | 老工具名保留可用，标注 `[deprecated, use …]` |
+
+覆盖 IM、通讯录、日历、文档/云盘、待办、DING、考勤、OA 审批、AI 表格、听记、邮箱等。钉钉每条消息都要求有 **title**（飞书没这要求）—— catalog 已强制。
+
+---
+
+## 与其它方案对比
+
+| | **本项目** | [`open-dingtalk/dingtalk-mcp`](https://github.com/open-dingtalk/dingtalk-mcp) | 自定义机器人 webhook |
+|---|---|---|---|
+| 以谁的身份发 | **你**（真实用户） | 机器人 | 机器人 |
+| 认证 | 用户 OAuth（`dws`） | 应用凭证 | Webhook URL |
+| 读历史 / 搜索 | ✅ | ❌ / 受限 | ❌ |
+| 群内显示 | 你的头像+昵称 | 机器人 | 机器人名 |
+
+想让助手*就是你*？用本项目。想要清晰标记的自动化？用机器人/webhook。
+
+---
+
+## 文档
+
+- **Local**：[安装配置](./packages/local/docs/setup.md) · [身份验证](./packages/local/docs/verification.md)
+- **Remote**：[Quick Desktop 接入](./docs/remote-quick-desktop.md) · [安全模型](./docs/remote-security.md) · [运维](./docs/remote-operations.md) · [可观测性](./docs/remote-observability.md) · [FAQ](./docs/remote-faq.md) · [成本](./docs/remote-cost.md)
 
 ## 致谢
 
-- 钉钉团队 [`dws`](https://github.com/DingTalk-Real-AI/dingtalk-workspace-cli) —— 干了所有脏活，本项目只是个适配层
-- [`@modelcontextprotocol/sdk`](https://www.npmjs.com/package/@modelcontextprotocol/sdk) —— MCP TypeScript SDK
-- 命名灵感来自飞书侧的 `lark-cli-mcp` 项目
+- [`dws` — DingTalk-Real-AI/dingtalk-workspace-cli](https://github.com/DingTalk-Real-AI/dingtalk-workspace-cli) —— 干了所有脏活，本项目只是它之上的薄适配层。
+- [`@modelcontextprotocol/sdk`](https://www.npmjs.com/package/@modelcontextprotocol/sdk)
+- 命名灵感来自飞书侧的 `lark-cli-mcp`。
 
 ## 开源协议
 
-[MIT](./LICENSE) © 2026 Keith Yu
+[MIT](./LICENSE) © Keith Yu

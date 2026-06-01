@@ -1,175 +1,198 @@
 # quick-dingtalk-mcp
 
-> **v0.2 升级提示（v0.1 用户必读）**：项目布局已改为 monorepo（`packages/local/server.mjs`）。v0.1 单文件 `server.mjs` 已不在仓库根。MCP host 配置里把 `args` 改成 `<repo>/packages/local/server.mjs`，或改用 `npx -y quick-dingtalk-mcp`。详见 [packages/local/docs/setup.md](./packages/local/docs/setup.md#v01--v02-迁移v01-用户必读)。
+> **Talk to DingTalk as *yourself* — from Amazon Quick Desktop and any other MCP host.**
 
-> **Talk to DingTalk as yourself, from any MCP host.**
-> A lightweight MCP server that wraps the official DingTalk CLI (`dws`), letting Amazon Q Developer / Claude Desktop / Cursor / Continue send and read DingTalk messages with **your real user identity** — not as a bot.
+An MCP server that wraps DingTalk's official CLI ([`dws`](https://github.com/DingTalk-Real-AI/dingtalk-workspace-cli)) so an AI assistant can send and read DingTalk messages **with your real user identity** — your avatar, your name in the group — instead of posting as a bot.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
-[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D20-brightgreen)](https://nodejs.org)
 [![MCP](https://img.shields.io/badge/MCP-compatible-blue)](https://modelcontextprotocol.io)
-[![Status](https://img.shields.io/badge/status-v0.2.0-blue)](#status)
 
-[English](#english) · [中文](./README_CN.md)
+English · [中文](./README_CN.md)
 
 ---
 
-## English
+## Why this exists
 
-### Why this exists
+DingTalk's own MCP server ([`open-dingtalk/dingtalk-mcp`](https://github.com/open-dingtalk/dingtalk-mcp)) only speaks as a **bot** — your teammates see a robot talking in the group, not you. That's wrong for a personal assistant.
 
-DingTalk's official MCP server ([`open-dingtalk/dingtalk-mcp`](https://github.com/open-dingtalk/dingtalk-mcp)) only supports **bot-identity** messaging — the message shows up in groups as a bot, not as you. For most personal-assistant use cases (an LLM acting on your behalf), this is the wrong fit.
+This project takes the opposite route. It wraps `dws`, DingTalk's official CLI, which authenticates over **user-identity OAuth**. So when you tell your assistant *"post 'meeting moved to 3pm' in the project group"*, the message lands **authored by you** — exactly as if you'd typed it.
 
-This project takes the opposite path: it wraps DingTalk's official CLI [`dws`](https://github.com/DingTalk-Real-AI/dingtalk-workspace-cli), which supports **user-identity** OAuth flows. The result: when you tell your AI host "post 'meeting moved to 3pm' in the project group", the message lands in the group authored by **you** — same avatar, same name as if you typed it.
+`dws` is itself a thin client to DingTalk's MCP gateway (`mcp-gw.dingtalk.com`), meaning DingTalk's backend is already MCP-native. This project exposes that capability in two ways:
 
-### Architecture
+| | **Local MCP** | **Remote MCP** |
+|---|---|---|
+| Who it's for | Just you, on your own machine | A whole team, shared |
+| Runs where | `dws` on your laptop, stdio to the host | AWS Bedrock AgentCore + Lambda, HTTPS |
+| Setup | `npm install` + `dws auth login` (~5 min) | Admin deploys once; each teammate self-authorizes |
+| Identity | Your own logged-in `dws` session | Per-user OAuth, isolated per teammate |
+| Best when | Personal use, fastest start | Many users, central audit, no local install |
+
+Both expose the **same 38 tools** (see [Tools](#tools)) backed by the same shared command catalog.
+
+---
+
+## Local MCP
+
+Run it on your own machine and wire it into Amazon Quick Desktop (or Claude Desktop, Cursor) over stdio.
 
 ```
-                   Local (v0.2 ready)                       Remote (v0.2 — e2e verified)
-MCP host ──stdio──→ packages/local/server.mjs              Quick Desktop ──HTTPS──→ AWS AgentCore + Lambda
-                       │                                              │
-                       │ uses → packages/shared/{catalog,             │ uses same packages/shared
-                       │   dispatcher, errors, search}                │
-                       ▼                                              ▼
-                    dws CLI ──HTTPS──→ DingTalk             container running dws (per-user DWS_CONFIG_DIR)
-                                                                       │
-                                                                       ▼
-                                                              DingTalk
+You type            Amazon Quick Desktop          quick-dingtalk-mcp              dws CLI                 DingTalk
+"post in X group" ──→  (MCP host) ──stdio──→ node packages/local/server.mjs ──exec──→ dws chat ... ──HTTPS──→ mcp-gw.dingtalk.com
 ```
 
-Under the hood, `dws` is itself a thin client to DingTalk's MCP gateway (`mcp-gw.dingtalk.com`) — which means DingTalk's server side is *already* MCP-native. This project exposes that capability over local stdio (Local) and over a managed Bedrock AgentCore runtime with per-user OAuth (Remote).
-
-### Quick start
+### 1. Install the DingTalk CLI
 
 ```bash
-# 1. Install DingTalk's official CLI
 npm install -g dingtalk-workspace-cli
+```
 
-# 2. Clone & install
+> Your DingTalk org must have **CLI access** enabled. Admins: [open-dev.dingtalk.com](https://open-dev.dingtalk.com) → "CLI 访问管理" → enable (once, org-wide). Members hitting a not-enabled wall get a one-click request prompt at login.
+
+### 2. Get the project
+
+```bash
 git clone https://github.com/keithyt06/quick-dingtalk-mcp.git
 cd quick-dingtalk-mcp
 npm install
-
-# 3. Login to DingTalk (device flow, works in any environment)
-dws auth login --device
-
-# 4. Wire it into your MCP host (see Configuration below)
 ```
 
-Full step-by-step guide → [packages/local/docs/setup.md](./packages/local/docs/setup.md)
-Sanity-check the user-identity claim → [packages/local/docs/verification.md](./packages/local/docs/verification.md)
+### 3. Log in to DingTalk (as you)
 
-### Tools (38)
+```bash
+dws auth login --device      # device flow — works over SSH / headless too
+```
 
-| Bucket | Count | Examples | Notes |
-|---|---|---|---|
-| **Tier1** | 30 | `dingtalk_chat_message_send`, `_list`, `_search`, `_recall`, `_reply`, `_list_mentions`, `_forward`; `dingtalk_contact_user_search`, `_get_self`, `_get`, `_dept_search`; `dingtalk_chat_search`, `_chat_group_create`, `_chat_group_members_list`; `dingtalk_calendar_event_create`, `_list`, `_update`, `_participant_list`; `dingtalk_doc_create`, `_read`, `_search`, `dingtalk_drive_list`; `dingtalk_todo_task_list`, `_create`, `_done`; `dingtalk_ding_message_send`, `_recall` | hand-picked, exposed by name |
-| **v0.1 aliases** | 6 | `dingtalk_send_message` → `dingtalk_chat_message_send` etc. | `[deprecated, use <new>]` in description; will drop in v0.3 |
-| **Discovery** | 2 | `dingtalk_discover` (keyword search the full catalog) + `dingtalk_invoke` (run anything from catalog) | covers all 261 dws v1.0.32 commands |
+Scan the code with your DingTalk app to authorize. This is the step that makes messages post **as you**.
 
-DingTalk requires every message to have a **title** (unlike Feishu). The catalog enforces this in `inputSchema.required`.
+### 4. Connect Amazon Quick Desktop
 
-### Configuration
+First grab two absolute paths (Quick Desktop's child process doesn't inherit your full `PATH`, so absolute paths are the reliable choice — and **no spaces** in the path):
 
-#### Amazon Q Developer (Quick Desktop)
+```bash
+which node                                  # e.g. /opt/homebrew/bin/node
+echo "$(pwd)/packages/local/server.mjs"     # the server entrypoint
+```
 
-`Settings → Capabilities → MCP → + Add MCP`:
+Then in **Amazon Quick Desktop → Settings → Capabilities → MCP → + Add MCP**:
 
 | Field | Value |
 |---|---|
-| Connection type | Local |
+| Connection type | **Local** |
 | ID | `quick-dingtalk-mcp` |
 | Name | `quick-dingtalk-mcp` |
-| Command | `node` (or absolute path from `which node`) |
-| Arguments | `<absolute path>/quick-dingtalk-mcp/packages/local/server.mjs` |
+| Command | the `which node` path |
+| Arguments | the `server.mjs` absolute path |
 
-#### Claude Desktop
+Save. You should see **`quick-dingtalk-mcp · 38 tools · Connected ✅`**.
 
-`~/Library/Application Support/Claude/claude_desktop_config.json` (macOS):
+### 5. Try it
 
-```json
-{
-  "mcpServers": {
-    "quick-dingtalk-mcp": {
-      "command": "node",
-      "args": ["/absolute/path/to/quick-dingtalk-mcp/packages/local/server.mjs"]
-    }
-  }
-}
+In a Quick Desktop chat:
+
+```
+List my recent DingTalk chats, then post a markdown message titled "test"
+with body "hello from quick-dingtalk-mcp" to chat_id=cidXXXX.
 ```
 
-#### Cursor
+Full walkthrough (incl. Claude Desktop / Cursor, troubleshooting, the "is it really *me*?" verification) → **[packages/local/docs/setup.md](./packages/local/docs/setup.md)**
 
-`Settings → Cursor Settings → MCP → + Add new MCP server` — same JSON shape as above.
+---
 
-### Comparison with alternatives
+## Remote MCP
 
-| | This project | [`open-dingtalk/dingtalk-mcp`](https://github.com/open-dingtalk/dingtalk-mcp) | Custom robot webhook |
-|---|---|---|---|
-| Message identity | **You** (real user) | Bot | Custom robot |
-| Auth | OAuth user_access_token | App credentials | Webhook URL |
-| Read history | ✅ | ❌ (limited) | ❌ |
-| Search | ✅ | ❌ | ❌ |
-| Setup effort | ~5 min | ~5 min | ~1 min |
-| Group display | Your avatar + name | Bot avatar + name | Robot name |
+A shared, multi-user deployment on AWS Bedrock AgentCore. **One deploy serves any number of teammates** — onboarding a new person is self-service, with zero code changes and no redeploy.
 
-If you want a personal-assistant feel where the LLM *is you*, use this. If you want clearly-marked automation, use the bot/webhook routes.
+```
+Each teammate           Amazon Quick Desktop                 AWS
+authorizes once  ──→  (MCP host, HTTPS + Bearer) ──→ CloudFront → API GW → mcp-middleware (Lambda)
+                                                          │  verify HMAC token, load *this user's* DingTalk token
+                                                          ▼
+                                                   AgentCore Runtime (container running dws, per-user config)
+                                                          │
+                                                          ▼
+                                                       DingTalk  (authored by that teammate)
+```
 
-## Remote (v0.2 — end-to-end verified)
+Each teammate's DingTalk token is stored, KMS-encrypted, per `userId` in Secrets Manager; the container gives each user an isolated `dws` config. Tokens auto-refresh on a schedule, so people only re-authorize when their 24h MCP session token lapses.
 
-Multi-user shared deployment to AWS Bedrock AgentCore. **One deploy serves any number of
-employees; onboarding a new user is self-service with zero code changes and no redeploy.**
-One-liner deploy:
+### Admin: deploy once
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/keithyt06/quick-dingtalk-mcp/main/packages/remote/scripts/install.sh | bash
 ~/.quick-dingtalk-mcp/packages/remote/scripts/deploy.sh
 ```
 
-After deploy, `deploy.sh` prints:
-- First-time authorize URL (send to teammates to open in browser)
-- Quick Desktop MCP endpoint (paste into Quick Desktop config)
+`deploy.sh` provisions everything (CloudFront, API Gateway, Lambdas, DynamoDB, Secrets Manager, the AgentCore Runtime container) and prints:
+- the **authorize URL** to hand to teammates
+- the **MCP endpoint** (`https://<domain>/mcp`) they paste into Amazon Quick Desktop
 
-Detailed docs:
-- [Quick Desktop integration](./docs/remote-quick-desktop.md)
-- [Security model](./docs/remote-security.md)
-- [Observability](./docs/remote-observability.md)
-- [Operations runbook](./docs/remote-operations.md)
-- [FAQ](./docs/remote-faq.md)
-- [Cost estimates](./docs/remote-cost.md)
+> Prereqs: a DingTalk app (AppKey/AppSecret) with `<domain>/callback` registered as its redirect URL, AWS creds for `us-east-1`, Docker, and Node ≥ 22.6. See [docs/remote-operations.md](./docs/remote-operations.md).
 
-### Status
+### Teammate: connect Amazon Quick Desktop (3 self-service steps)
 
-**v0.2 — Local + Remote both shipped; Remote verified end-to-end with a real DingTalk account.**
+1. **Authorize** — open the admin's `https://<domain>/authorize` in a browser, approve with *your* DingTalk account, copy the `Bearer ...` token it returns (valid 24h).
+2. **Add the MCP server** in **Amazon Quick Desktop → Settings → Capabilities → MCP → + Add MCP**:
 
-- ✅ **Local v0.2**: monorepo refactor done; 38 tools (30 tier1 + 6 aliases + discover/invoke); shared catalog covers all 261 dws v1.0.32 commands; smoke test passes; v0.1 user-identity verification still holds.
-- ✅ **Remote v0.2 — end-to-end verified (2026-06-01)**: a real DingTalk account completed `/authorize` → consent → `/callback` → MCP token → Quick Desktop (streamable-http) connected → `dingtalk_contact_user_get_self` returned the user's own identity through the full chain. Token injection is `dws auth login --token` (D2, verified, not a stub); the EventBridge auto-refresh path is verified working.
-  - Real issues found & fixed during the live bring-up (all folded back into the repo so the next `deploy.sh` works first try):
-    1. AgentCore's HTTP contract requires the container to listen on **8080** (not 8000) → 502 otherwise;
-    2. `requestHeaderConfiguration.requestHeaderAllowlist` must explicitly allow the custom identity headers, or the container never sees them (401);
-    3. the mcp-middleware → AgentCore **SigV4** signature must not fold the query string into the path (else 403 SignatureDoesNotMatch);
-    4. `secretsmanager:ListSecrets` must be granted on `Resource:*` (account-level action) or auto-refresh is denied and tokens expire (503);
-    5. server.js now satisfies the MCP Streamable HTTP handshake (`Mcp-Session-Id` header + protocol-version negotiation + 202 for notifications), else clients stay "Configured" but never Connected;
-    6. SSM params are recreated as SecureString (CloudFormation can only seed String placeholders);
-    7. the CDK app is pre-bundled to CJS (`infra/bin/app.bundle.cjs`) to sidestep the native strip-types loader's incompatibility with aws-cdk-lib's CommonJS named exports.
-  - Multi-user: one deploy serves any number of employees via self-service authorize; new users add zero code and no redeploy. See the [Quick Desktop onboarding guide](./docs/remote-quick-desktop.md).
-- 📅 **Remaining**: backfill scope-map strings, observability dashboard tuning, multi-region, custom domain.
+   | Field | Value |
+   |---|---|
+   | Connection type | **Remote / HTTP** (`streamable-http`) |
+   | URL | `https://<domain>/mcp` |
+   | Header | `Authorization: Bearer <your token>` |
 
-Roadmap, in priority order:
-1. ~~Plan 2: Remote stack~~ ✅
-2. ~~Plan 3: end-to-end bring-up~~ ✅ (remaining: scope-map backfill, multi-region)
-3. v0.3: drop v0.1 aliases; image / file / interactive card support
+   ```json
+   {
+     "transport": "streamable-http",
+     "url": "https://<domain>/mcp",
+     "headers": { "Authorization": "Bearer <your token>" },
+     "timeout": 60000
+   }
+   ```
+3. **Verify** — say *"use dingtalk to look up my own profile"*; it returns your real org/department.
 
-### Acknowledgments
+You don't touch the DingTalk developer console — the app is the admin's; you just authorize with your account.
 
-- [`@DingTalk-Real-AI/dingtalk-workspace-cli`](https://github.com/DingTalk-Real-AI/dingtalk-workspace-cli) — does all the heavy lifting; this project is a thin shim
-- [`@modelcontextprotocol/sdk`](https://www.npmjs.com/package/@modelcontextprotocol/sdk) — TypeScript MCP SDK
-- Inspired by the `lark-cli-mcp` pattern for Feishu
-
-### License
-
-[MIT](./LICENSE) © 2026 Keith Yu
+Full onboarding + troubleshooting → **[docs/remote-quick-desktop.md](./docs/remote-quick-desktop.md)**
 
 ---
 
-> 中文文档见 [README_CN.md](./README_CN.md)。
+## Tools
+
+38 tools, identical across Local and Remote, backed by a shared catalog that covers **all 261 `dws` commands**:
+
+| Group | Count | What |
+|---|---|---|
+| **Named tools** | 30 | The common ones, exposed directly: `dingtalk_chat_message_send` / `_list` / `_search` / `_recall` / `_reply` / `_forward`, `dingtalk_contact_user_search` / `_get_self`, `dingtalk_calendar_event_create`, `dingtalk_doc_create` / `_read`, `dingtalk_todo_task_create`, `dingtalk_ding_message_send`, … |
+| **Discover + invoke** | 2 | `dingtalk_discover` (keyword-search the full catalog) + `dingtalk_invoke` (run anything it returns) — reaches all 261 commands without bloating the tool list |
+| **Aliases** | 6 | Older names kept working, marked `[deprecated, use …]` |
+
+Covers IM, contacts, calendar, docs/drive, todo, DING, attendance, OA approval, AI table, minutes, mail, and more. Every DingTalk message requires a **title** (unlike Feishu) — the catalog enforces it.
+
+---
+
+## Comparison
+
+| | **This project** | [`open-dingtalk/dingtalk-mcp`](https://github.com/open-dingtalk/dingtalk-mcp) | Custom robot webhook |
+|---|---|---|---|
+| Posts as | **You** (real user) | A bot | A robot |
+| Auth | User OAuth (`dws`) | App credentials | Webhook URL |
+| Read history / search | ✅ | ❌ / limited | ❌ |
+| Group display | Your avatar + name | Bot | Robot name |
+
+Want the assistant to *be you*? Use this. Want clearly-labelled automation? Use the bot/webhook routes.
+
+---
+
+## Docs
+
+- **Local**: [setup](./packages/local/docs/setup.md) · [identity verification](./packages/local/docs/verification.md)
+- **Remote**: [Quick Desktop onboarding](./docs/remote-quick-desktop.md) · [security](./docs/remote-security.md) · [operations](./docs/remote-operations.md) · [observability](./docs/remote-observability.md) · [FAQ](./docs/remote-faq.md) · [cost](./docs/remote-cost.md)
+
+## Acknowledgments
+
+- [`dws` — DingTalk-Real-AI/dingtalk-workspace-cli](https://github.com/DingTalk-Real-AI/dingtalk-workspace-cli) — does the heavy lifting; this project is a thin shim over it.
+- [`@modelcontextprotocol/sdk`](https://www.npmjs.com/package/@modelcontextprotocol/sdk)
+- Inspired by the `lark-cli-mcp` pattern for Feishu.
+
+## License
+
+[MIT](./LICENSE) © Keith Yu
