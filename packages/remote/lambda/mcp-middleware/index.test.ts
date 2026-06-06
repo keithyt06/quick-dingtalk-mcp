@@ -22,6 +22,10 @@ const smFake = {
       if (!v) { const e: any = new Error("not found"); e.name = "ResourceNotFoundException"; throw e; }
       return { SecretString: v };
     }
+    if (op === "PutSecretValueCommand") {
+      smStore.set(cmd.input.SecretId, cmd.input.SecretString);
+      return {};
+    }
     throw new Error("unsupported");
   },
 };
