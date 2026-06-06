@@ -106,3 +106,46 @@ test("upstream timeout → 504", async () => {
   const r = await handler(event(tok), {} as any);
   assert.equal((r as any).statusCode, 504);
 });
+
+const DAY = 86400;
+
+test("闲置超90天 → 401 idle-expired + hint", async () => {
+  const tok = signMcpToken({ userId: "u5", expiresInSec: 3600 }, HMAC_KEY);
+  const now = Math.floor(Date.now() / 1000);
+  smStore.set("quick-dingtalk-mcp/users/u5", JSON.stringify({
+    access_token: "AT", refresh_token: "RT", expires_at: now + 7200, scope: "",
+    last_active: now - 91 * DAY,
+  }));
+  const r = await handler(event(tok), {} as any);
+  assert.equal((r as any).statusCode, 401);
+  assert.match((r as any).body, /idle-expired/);
+  assert.match((r as any).body, /hint/, "idle-expired 应带可读 hint(P1)");
+});
+
+test("无 last_active(旧记录)→ 放行并写入 last_active", async () => {
+  const tok = signMcpToken({ userId: "u6", expiresInSec: 3600 }, HMAC_KEY);
+  const now = Math.floor(Date.now() / 1000);
+  smStore.set("quick-dingtalk-mcp/users/u6", JSON.stringify({
+    access_token: "AT", refresh_token: "RT", expires_at: now + 7200, scope: "",
+  }));
+  fetchImpl = async () => new Response('{"ok":true}', { status: 200, headers: { "content-type": "application/json" } });
+  const r = await handler(event(tok), {} as any);
+  assert.equal((r as any).statusCode, 200);
+  const stored = JSON.parse(smStore.get("quick-dingtalk-mcp/users/u6")!);
+  assert.ok(stored.last_active >= now, "last_active 应被写入");
+});
+
+test("last_active 在1天内 → 放行但不重写(节流)", async () => {
+  const tok = signMcpToken({ userId: "u7", expiresInSec: 3600 }, HMAC_KEY);
+  const now = Math.floor(Date.now() / 1000);
+  const recent = now - 100; // 100秒前,远小于1天
+  smStore.set("quick-dingtalk-mcp/users/u7", JSON.stringify({
+    access_token: "AT", refresh_token: "RT", expires_at: now + 7200, scope: "",
+    last_active: recent,
+  }));
+  fetchImpl = async () => new Response('{"ok":true}', { status: 200, headers: { "content-type": "application/json" } });
+  const r = await handler(event(tok), {} as any);
+  assert.equal((r as any).statusCode, 200);
+  const stored = JSON.parse(smStore.get("quick-dingtalk-mcp/users/u7")!);
+  assert.equal(stored.last_active, recent, "节流期内 last_active 不应被改写");
+});
