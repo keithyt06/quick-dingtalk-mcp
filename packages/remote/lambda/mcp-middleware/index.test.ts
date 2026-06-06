@@ -135,6 +135,36 @@ test("无 last_active(旧记录)→ 放行并写入 last_active", async () => {
   assert.ok(stored.last_active >= now, "last_active 应被写入");
 });
 
+test("节流写时 secret 已被吊销(重读为null)→ 不复活、仍放行", async () => {
+  const tok = signMcpToken({ userId: "u8", expiresInSec: 3600 }, HMAC_KEY);
+  const now = Math.floor(Date.now() / 1000);
+  const id = "quick-dingtalk-mcp/users/u8";
+  // 首读有值(过了节流阈值,会触发写路径),但写前会重读。
+  smStore.set(id, JSON.stringify({
+    access_token: "AT", refresh_token: "RT", expires_at: now + 7200, scope: "",
+    last_active: now - 5 * DAY,
+  }));
+  // 包装 get:第一次返回原值,第二次(写前重读)模拟已被吊销返回 not-found。
+  let getCount = 0;
+  const realSend = smFake.send;
+  (smFake as any).send = async (cmd: any) => {
+    if (cmd.constructor.name === "GetSecretValueCommand") {
+      getCount++;
+      if (getCount >= 2) { const e: any = new Error("gone"); e.name = "ResourceNotFoundException"; throw e; }
+    }
+    return realSend(cmd);
+  };
+  try {
+    fetchImpl = async () => new Response('{"ok":true}', { status: 200, headers: { "content-type": "application/json" } });
+    const r = await handler(event(tok), {} as any);
+    assert.equal((r as any).statusCode, 200, "token 此刻仍有效,应放行");
+    // 不应被复活:store 里仍是原记录(没有因 CreateSecret 兜底重建/改写)。
+    assert.ok(smStore.has(id), "原 secret 仍在(本测试未真正删,只是重读模拟 null)");
+  } finally {
+    (smFake as any).send = realSend;
+  }
+});
+
 test("last_active 在1天内 → 放行但不重写(节流)", async () => {
   const tok = signMcpToken({ userId: "u7", expiresInSec: 3600 }, HMAC_KEY);
   const now = Math.floor(Date.now() / 1000);

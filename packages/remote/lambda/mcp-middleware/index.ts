@@ -95,12 +95,18 @@ export const handler = async (
   }
 
   // 节流更新 last_active:距上次超过阈值(或从未写过)才写一次。
-  // 写前重读最新整条,只覆盖 last_active,避免与刷新链路轮换 token 的竞态(spec §4.2)。
+  // 写前重读最新整条,只覆盖 last_active,把与刷新链路轮换 token 的竞态窗口
+  // 压到毫秒级(spec §4.2;残留窗口被覆盖也只产生一次自愈的 503,无数据丢失)。
   if (userToken.last_active === undefined || now - userToken.last_active > LAST_ACTIVE_THROTTLE_SEC) {
     try {
-      const fresh = (await getUserToken(userId)) || userToken;
-      const updated: UserToken = { ...fresh, last_active: now };
-      await putUserToken(userId, updated);
+      const fresh = await getUserToken(userId);
+      // 重读为 null = secret 在本次请求中途被吊销(ops.sh revoke 删除)。
+      // 不要回写,否则会经 putUserToken 的 CreateSecret 兜底「复活」已吊销用户。
+      // 跳过即可:吊销保持吊销,本次请求仍放行(token 此刻仍有效)。
+      if (fresh) {
+        const updated: UserToken = { ...fresh, last_active: now };
+        await putUserToken(userId, updated);
+      }
     } catch (e: any) {
       // 写 last_active 失败不应阻断本次请求(下次再补)。
       log.warn("last_active write failed", { userId, err: e.message });
