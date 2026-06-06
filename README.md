@@ -123,7 +123,7 @@ authorizes once  ──→  (MCP host, HTTPS + Bearer) ──→ CloudFront → 
                                                        DingTalk  (authored by that teammate)
 ```
 
-Each teammate's DingTalk token is stored, KMS-encrypted, per `userId` in Secrets Manager; the container gives each user an isolated `dws` config. Tokens auto-refresh on a schedule, so people only re-authorize when their 24h MCP session token lapses.
+Each teammate's DingTalk token is stored, KMS-encrypted, per `userId` in Secrets Manager; the container gives each user an isolated `dws` config. Tokens auto-refresh on a schedule, and the MCP token you paste into your client stays valid as long as you keep using it — the backend tracks a per-user activity window (90 days idle before re-auth is needed), so a one-time setup just keeps working.
 
 ### Admin: deploy once
 
@@ -140,7 +140,7 @@ curl -fsSL https://raw.githubusercontent.com/keithyt06/quick-dingtalk-mcp/main/p
 
 ### Teammate: connect Amazon Quick Desktop (3 self-service steps)
 
-1. **Authorize** — open the admin's `https://<domain>/authorize` in a browser, approve with *your* DingTalk account, copy the `Bearer ...` token it returns (valid 24h).
+1. **Authorize** — open the admin's `https://<domain>/authorize` in a browser, approve with *your* DingTalk account, copy the `Bearer ...` token it returns. You only do this once — the token stays valid as long as you keep using it (re-auth only after 90 days of no use).
 2. **Add the MCP server** in **Amazon Quick Desktop → Settings → Capabilities → MCP → + Add MCP**:
 
    | Field | Value |

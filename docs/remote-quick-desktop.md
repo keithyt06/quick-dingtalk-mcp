@@ -51,9 +51,9 @@ https://<域名>/authorize
 流程（你视角）：
 1. 页面自动跳转到钉钉授权页。
 2. 用**你自己的钉钉账号**确认授权（同意 scope `openid corpid`）。
-3. 钉钉跳回，页面显示一段 `Bearer ...` token——**复制它**（这就是你的专属 MCP token，24 小时有效）。
+3. 钉钉跳回，页面显示一段 `Bearer ...` token——**复制它**（这就是你的专属 MCP token，长期有效——只要在用就不过期）。
 
-> 底层：`token-refresh-shim` Lambda 生成 `state`（写 DynamoDB，TTL 10 分钟）重定向到钉钉；钉钉回调后 Lambda 用授权码换 `access_token`+`refresh_token` 存进 Secrets Manager（KMS 加密），再用 SSM 里的 HMAC 主密钥派生出你的 MCP token（HMAC-SHA256，24h 过期）渲染到页面。
+> 底层：`token-refresh-shim` Lambda 生成 `state`（写 DynamoDB，TTL 10 分钟）重定向到钉钉；钉钉回调后 Lambda 用授权码换 `access_token`+`refresh_token` 存进 Secrets Manager（KMS 加密），再用 SSM 里的 HMAC 主密钥派生出你的 MCP token（HMAC-SHA256，~13 个月硬上限；实际有效性由后端 90 天活跃窗口判定——只要 90 天内用过就持续续期）渲染到页面。
 
 ### 第 2 步：填进 Quick Desktop
 
@@ -105,11 +105,11 @@ JSON 形式：
 
 | 情况 | 表象 | 处理 |
 |---|---|---|
-| MCP token 24h 过期 | Quick 报 401 / 连接失效 | 重新打开 `<域名>/authorize` 走一遍授权，复制新 token 替换 |
+| 闲置 90 天后 MCP token 失效 | Quick 报 401 / 连接失效（极罕见） | 重新打开 `<域名>/authorize` 走一遍授权，复制新 token 替换 |
 | 钉钉 access_token 临过期 | 偶发 503 `Retry-After: 30` | 后端 EventBridge 每 30 分钟自动用 refresh_token 续期，等一会重试即可；持续 503 找管理员跑 `ops.sh refresh` |
 | 钉钉 refresh_token 失效（约 30 天未用） | 401 reauth | 必须重新走授权 URL |
 
-> **重点**：钉钉侧的 access_token 由后端自动保活（EventBridge 定时刷新），你平时无感。你唯一需要手动做的是 **MCP token 24h 过期后重新授权一次**——就是重复第 1 步。
+> **重点**：钉钉侧的 access_token 由后端自动保活（EventBridge 定时刷新），MCP token 也只要你在用就长期有效。正常情况下你**配一次就一直能用**，不需要反复重新授权；只有连续 90 天完全没用过才需要重复第 1 步。
 
 ---
 

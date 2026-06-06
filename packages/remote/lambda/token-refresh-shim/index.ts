@@ -235,7 +235,7 @@ async function handleCallback(event: APIGatewayProxyEventV2): Promise<APIGateway
 <h1>钉钉授权成功</h1>
 <p>把下面这一行复制到 Quick Desktop 的 <code>Authorization</code> header（或 MCP 配置的 <code>token</code> 字段）：</p>
 <pre>Bearer ${mcpToken}</pre>
-<p>有效期 24 小时；过期后再次跑授权即可。</p>`;
+<p>只要在用就长期有效，无需反复授权；仅当连续 90 天未使用才需重新跑一次授权。</p>`;
   return { statusCode: 200, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" }, body: html };
 }
 

@@ -123,7 +123,7 @@ echo "$(pwd)/packages/local/server.mjs"     # server 入口
                                                    钉钉（以该成员身份发出）
 ```
 
-每个成员的钉钉 token 按 `userId` 分别用 KMS 加密存在 Secrets Manager；容器给每个用户一份隔离的 `dws` 配置。token 由定时任务自动续期，所以大家只在 24h 的 MCP 会话 token 过期时才需要重新授权一次。
+每个成员的钉钉 token 按 `userId` 分别用 KMS 加密存在 Secrets Manager；容器给每个用户一份隔离的 `dws` 配置。钉钉 token 由定时任务自动续期；你粘进客户端的 MCP token **只要在用就一直有效**——后端按用户记录活跃窗口（连续 90 天不用才需重新授权），所以一次配置长期可用。
 
 ### 管理员：部署一次
 
@@ -140,7 +140,7 @@ curl -fsSL https://raw.githubusercontent.com/keithyt06/quick-dingtalk-mcp/main/p
 
 ### 成员：接入 Amazon Quick Desktop（3 步自助）
 
-1. **授权** —— 浏览器打开管理员给的 `https://<域名>/authorize`，用*你自己*的钉钉账号同意，复制返回的 `Bearer ...` token（24 小时有效）。
+1. **授权** —— 浏览器打开管理员给的 `https://<域名>/authorize`，用*你自己*的钉钉账号同意，复制返回的 `Bearer ...` token。**只需做这一次**——token 只要在用就长期有效（连续 90 天不用才需重新授权）。
 2. **添加 MCP server**，在 **Amazon Quick Desktop → Settings → Capabilities → MCP → + Add MCP**：
 
    | 字段 | 值 |
