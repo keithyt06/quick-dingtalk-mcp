@@ -120,7 +120,10 @@ export class OAuthStack extends Stack {
     });
     hmacKey.grantRead(this.mcpMiddleware);
     this.mcpMiddleware.addToRolePolicy(new iam.PolicyStatement({
-      actions: ["secretsmanager:GetSecretValue"],
+      // GetSecretValue: 读用户 token。PutSecretValue: 节流回写 last_active(90 天
+      // 活跃窗口判定依赖它,spec §4.1/4.2)。用户 secret 在 /callback 已创建,
+      // middleware 只更新不新建,故不授予 CreateSecret(最小权限)。
+      actions: ["secretsmanager:GetSecretValue", "secretsmanager:PutSecretValue"],
       resources: [this.userTokenSecretArnPrefix],
     }));
     this.mcpMiddleware.addToRolePolicy(new iam.PolicyStatement({
