@@ -13,6 +13,7 @@ export type UserToken = {
   expires_at: number; // unix seconds
   scope: string;
   needs_reauth?: boolean;
+  last_active?: number; // unix seconds — 最后一次成功调用;mcp-middleware 维护,缺失视为首次活跃
 };
 
 const PREFIX = "quick-dingtalk-mcp/users/";
