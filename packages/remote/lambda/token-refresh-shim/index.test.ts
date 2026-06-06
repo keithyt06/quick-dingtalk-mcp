@@ -168,3 +168,22 @@ test("EventBridge refresh: failure marks needs_reauth", async () => {
   const uf = JSON.parse(smStore.get("quick-dingtalk-mcp/users/uf")!);
   assert.equal(uf.needs_reauth, true);
 });
+
+test("E1: refresh 成功后保留 last_active(否则90天窗口失效)", async () => {
+  const now = Math.floor(Date.now() / 1000);
+  const la = now - 1000;
+  smStore.set("quick-dingtalk-mcp/users/ue1", JSON.stringify({
+    access_token: "OLD", refresh_token: "rt-e1", expires_at: now + 100, scope: "x", last_active: la,
+  }));
+  fetchImpl = async (url) => {
+    if (url.includes("oauth2/userAccessToken")) {
+      return new Response(JSON.stringify({ accessToken: "NEW", refreshToken: "RT-new", expiresIn: 7200, scope: "x" }), { status: 200 });
+    }
+    return new Response("nope", { status: 404 });
+  };
+  const r = await handler({ source: "aws.events" } as any, {} as any);
+  assert.equal((r as any).refreshed, 1);
+  const stored = JSON.parse(smStore.get("quick-dingtalk-mcp/users/ue1")!);
+  assert.equal(stored.access_token, "NEW", "token 应已轮换");
+  assert.equal(stored.last_active, la, "last_active 必须被保留");
+});

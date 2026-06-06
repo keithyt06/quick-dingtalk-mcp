@@ -21,6 +21,10 @@ const DINGTALK_AUTHORIZE_URL = process.env.DINGTALK_AUTHORIZE_URL || "https://lo
 const DINGTALK_TOKEN_URL = process.env.DINGTALK_TOKEN_URL || "https://api.dingtalk.com/v1.0/oauth2/userAccessToken";
 const DINGTALK_USER_ME_URL = process.env.DINGTALK_USER_ME_URL || "https://api.dingtalk.com/v1.0/contact/users/me";
 const REFRESH_BUFFER_SEC = 60 * 60; // refresh if expires_at - now < 60min
+// MCP Bearer 不带功能性过期 —— 有效性由 mcp-middleware 的「90 天活跃窗口」判定。
+// 这里只保留一个远期硬上限(~13 个月 > 90 天窗口),作纵深防御:
+// 即便活跃窗口逻辑失效,token 也终会自然过期,不会变成永久不可吊销的裸钥匙。
+const MCP_TOKEN_MAX_LIFETIME_SEC = 400 * 86400;
 // dws v1.0.32 requests `openid corpid` by default (auth/endpoints.go: DefaultScopes).
 // `corpid` is needed for the enterprise context (corpId) most org-level APIs require.
 const DEFAULT_SCOPES = (process.env.DEFAULT_SCOPES || "openid corpid").split(/[, ]+/).map(s => s.trim()).filter(Boolean);
@@ -224,7 +228,7 @@ async function handleCallback(event: APIGatewayProxyEventV2): Promise<APIGateway
   await putUserToken(userId, userToken);
 
   const hmacKey = await getHmacKey();
-  const mcpToken = signMcpToken({ userId, expiresInSec: 86400 }, hmacKey);
+  const mcpToken = signMcpToken({ userId, expiresInSec: MCP_TOKEN_MAX_LIFETIME_SEC }, hmacKey);
 
   const html = `<!doctype html><meta charset="utf-8"><title>授权成功</title>
 <style>body{font-family:system-ui,sans-serif;max-width:600px;margin:40px auto;padding:0 16px}code{background:#f4f4f4;padding:2px 6px;border-radius:3px}pre{background:#f4f4f4;padding:12px;overflow-x:auto;word-break:break-all;white-space:pre-wrap}</style>
@@ -244,6 +248,7 @@ async function handleRefreshOne(userId: string): Promise<{ ok: boolean; reason?:
     const newT = await refreshAccessToken(t.refresh_token);
     const expiresAt = Math.floor(Date.now() / 1000) + newT.expires_in;
     await putUserToken(userId, {
+      ...t, // 保留 last_active 等字段;窗口判定依赖它(spec §4.7)
       access_token: newT.access_token,
       refresh_token: newT.refresh_token,
       expires_at: expiresAt,
