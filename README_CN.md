@@ -195,7 +195,7 @@ curl -fsSL https://raw.githubusercontent.com/keithyt06/quick-dingtalk-mcp/main/p
 ## 文档
 
 - **Local**：[安装配置](./packages/local/docs/setup.md) · [身份验证](./packages/local/docs/verification.md)
-- **Remote**：[Quick Desktop 接入](./docs/remote-quick-desktop.md) · [安全模型](./docs/remote-security.md) · [运维](./docs/remote-operations.md) · [可观测性](./docs/remote-observability.md) · [FAQ](./docs/remote-faq.md) · [成本](./docs/remote-cost.md)
+- **Remote**：[连接帮助（新人必读）](./docs/remote-连接帮助.md) · [Quick Desktop 接入（技术版）](./docs/remote-quick-desktop.md) · [安全模型](./docs/remote-security.md) · [运维](./docs/remote-operations.md) · [可观测性](./docs/remote-observability.md) · [FAQ](./docs/remote-faq.md) · [成本](./docs/remote-cost.md)
 
 ## 致谢
 
