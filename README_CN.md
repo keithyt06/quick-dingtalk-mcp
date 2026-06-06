@@ -154,7 +154,7 @@ curl -fsSL https://raw.githubusercontent.com/keithyt06/quick-dingtalk-mcp/main/p
      "transport": "streamable-http",
      "url": "https://<域名>/mcp",
      "headers": { "Authorization": "Bearer <你的 token>" },
-     "timeout": 60000
+     "timeout": 300
    }
    ```
 3. **验证** —— 说一句*"用 dingtalk 查一下我自己的资料"*，它会返回你真实的企业/部门信息。

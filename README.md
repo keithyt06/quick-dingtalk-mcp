@@ -154,7 +154,7 @@ curl -fsSL https://raw.githubusercontent.com/keithyt06/quick-dingtalk-mcp/main/p
      "transport": "streamable-http",
      "url": "https://<domain>/mcp",
      "headers": { "Authorization": "Bearer <your token>" },
-     "timeout": 60000
+     "timeout": 300
    }
    ```
 3. **Verify** — say *"use dingtalk to look up my own profile"*; it returns your real org/department.

@@ -67,7 +67,7 @@ Quick Desktop → Settings → MCP → + Add MCP，填：
 | Name | 任意，如 `钉钉 (Remote)` |
 | URL | `https://<域名>/mcp`（**必须以 `/mcp` 结尾**） |
 | Header | `Authorization: Bearer <第1步复制的 token>` |
-| Timeout | 60000（可选，长工具防超时） |
+| Timeout (seconds) | `300`（**单位是秒，最大 300**；该项是「等待 server 启动的最长时间 5-300s」，调大可防长工具超时） |
 
 JSON 形式：
 
@@ -79,7 +79,7 @@ JSON 形式：
   "headers": {
     "Authorization": "Bearer <你的 token>"
   },
-  "timeout": 60000
+  "timeout": 300
 }
 ```
 
