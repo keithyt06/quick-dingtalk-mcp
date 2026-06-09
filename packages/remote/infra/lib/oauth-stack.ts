@@ -57,7 +57,7 @@ export class OAuthStack extends Stack {
       // the whole org with no recovery. RETAIN keeps the old table on replace;
       // PITR allows point-in-time restore.
       removalPolicy: RemovalPolicy.RETAIN,
-      pointInTimeRecovery: true,
+      pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
     });
 
     // --- SSM HMAC key (auto-generated; rotated manually) ---
