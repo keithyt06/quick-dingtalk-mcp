@@ -182,7 +182,7 @@ Want the assistant to *be you*? Use this. Want clearly-labelled automation? Use 
 ## Docs
 
 - **Local**: [setup](./packages/local/docs/setup.md) · [identity verification](./packages/local/docs/verification.md)
-- **Remote**: [connect help (for end users, 中文)](./docs/remote-连接帮助.md) · [Quick Desktop onboarding](./docs/remote-quick-desktop.md) · [security](./docs/remote-security.md) · [operations](./docs/remote-operations.md) · [observability](./docs/remote-observability.md) · [FAQ](./docs/remote-faq.md) · [cost](./docs/remote-cost.md)
+- **Remote**: [first-time setup · OAuth wizard, recommended (中文)](./docs/remote-新人首配-oauth.md) · [connect help · manual (中文)](./docs/remote-连接帮助.md) · [Quick Desktop onboarding](./docs/remote-quick-desktop.md) · [security](./docs/remote-security.md) · [operations](./docs/remote-operations.md) · [observability](./docs/remote-observability.md) · [FAQ](./docs/remote-faq.md) · [cost](./docs/remote-cost.md)
 
 ## Acknowledgments
 

@@ -1,5 +1,7 @@
 # 钉钉助手 · 连接帮助（新人必读）
 
+> 🆕 **推荐先看 [新人首配（OAuth 向导版）](./remote-新人首配-oauth.md)**：用 Quick 自带的 OAuth 向导自动授权，**不用复制粘贴 token、自动续期**。本文是「手动复制 Bearer」的备用流程，适用于 Quick 没有 OAuth 向导的情况。
+>
 > 面向**不懂技术**的同事。照着做就行，全程约 3 分钟，不需要任何代码或命令。
 > 需要更详细的技术说明 / 故障排查矩阵，看 [remote-quick-desktop.md](./remote-quick-desktop.md)。
 
