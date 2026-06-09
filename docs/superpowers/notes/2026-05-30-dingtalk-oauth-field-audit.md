@@ -24,6 +24,16 @@
 
 ---
 
+## 0. 2026-06-09 第三方实现交叉核对(EMP-WGJJ/aws-quick-dingtalk-mcp-oauth)
+
+一个独立开发者按相同思路另写了一套网关(非 fork:无 git 历史、单 squash commit、License 改 ISC、不用 dws CLI 而是直接 HTTP 代理 `mcp-gw.dingtalk.com`)。拿它的代码与本项目 2026-06-01 真实联调结论交叉核对:
+
+- **`expiresIn` vs `expireIn` 反向印证本项目正确**:它的 `src/utils/dingtalk-api.ts` 用 `expireIn`(不带 s),会算出 `Date.now()+undefined*1000=NaN`。本项目 2026-06-01 用 Secrets Manager 实存数据坐实钉钉真实返回 `expiresIn`(带 s)。**它错、本项目对**——说明它的 refresh 路径很可能没真正联调过。§1.1/§1.2 的 `j.expiresIn ?? j.expireIn` 维持不变。
+- **PKCE 分层值得借鉴**:它对 Quick(外层)用标准 PKCE,对钉钉(内层)用 clientSecret 直连**不带** PKCE——与 dws 源码一致(§1.3)。本项目现状对钉钉也带 code_challenge(实测钉钉接受,无害)。后续做"标准 OAuth Authorization Server"时,正确分层 = 外层 PKCE + 内层 clientSecret。
+- **scope `openid corpid` 双方一致** ✓。
+
+详细对比与吸取项见会话记录;§1 以下结论不受影响。
+
 ## 1. token-refresh-shim/index.ts 的字段核对
 
 dws 直连模式真实请求(`internal/auth/oauth_helpers.go: exchangeCode / refreshWithRefreshToken`):

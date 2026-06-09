@@ -44,11 +44,18 @@ function unauth(reason: string, hint?: string): APIGatewayProxyResultV2 {
   log.warn("unauthorized", { reason });
   const body: Record<string, string> = { error: "unauthorized", reason };
   if (hint) body.hint = hint;
-  return {
-    statusCode: 401,
-    headers: { "content-type": "application/json", "cache-control": "no-store" },
-    body: JSON.stringify(body),
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+    "cache-control": "no-store",
   };
+  // RFC 9728: point the MCP host at the protected-resource metadata so its OAuth
+  // wizard can discover the authorization server and run DCR. Only emit when we
+  // know our public base URL (OAUTH_BASE_URL may be unset in some envs).
+  if (OAUTH_BASE_URL) {
+    headers["www-authenticate"] =
+      `Bearer resource_metadata="${OAUTH_BASE_URL}/.well-known/oauth-protected-resource"`;
+  }
+  return { statusCode: 401, headers, body: JSON.stringify(body) };
 }
 
 function serverBusyOrRetry(reason: string, retryAfter: number, status = 503): APIGatewayProxyResultV2 {

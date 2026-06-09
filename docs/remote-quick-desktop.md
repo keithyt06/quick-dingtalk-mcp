@@ -25,6 +25,41 @@ Remote 的设计目标是**一次部署支持任意多个员工**，新员工接
 
 ---
 
+## 两种接入方式：标准 OAuth（推荐）vs 手动复制 token
+
+网关同时是一个标准 **OAuth 2.1 Authorization Server**（RFC 8414/9728/7591 + PKCE），所以有两条接入路径：
+
+| | **标准 OAuth 向导（推荐）** | **手动复制 Bearer（fallback）** |
+|---|---|---|
+| 怎么配 | 在 Quick 填 Authorization/Token URL，**向导自动跳钉钉授权并回填 token** | 浏览器打开 `/authorize`，手动复制返回的 `Bearer` 粘进 header |
+| 续期 | Quick 用 `refresh_token` **自动续**（access 1h，refresh 90天轮换） | token ~13 个月硬上限 + 后端 90 天活跃窗口 |
+| 适合 | Quick 等支持 OAuth 向导的 host | 不支持自动 OAuth 的 host、调试、curl |
+
+**优先用标准 OAuth**（下面「方式 A」）；host 不支持时再用「方式 B」手动流。两者颁发的都是同一种 MCP token，后端无差别。
+
+### 方式 A：标准 OAuth 向导（推荐）
+
+在 Quick Desktop 的 MCP 连接器配置里，选 OAuth / 自定义 OAuth，填：
+
+| 字段 | 值 |
+|---|---|
+| Authorization URL | `https://<域名>/authorize` |
+| Token URL | `https://<域名>/token` |
+| Client ID | 走 DCR 动态注册的 host 留空自动注册；需手填的填任意值（如 `quick`） |
+| Client Secret | 任意非空占位串（网关用 PKCE 鉴权，**不校验 secret**；Quick 表单强制要才填） |
+| Scope | `openid` |
+| MCP Server Endpoint | `https://<域名>/mcp` |
+
+保存后 Quick 会：①（如支持 DCR）自动调 `/register` 注册 → ②弹出登录按钮 → ③你用**自己的钉钉账号**授权 → ④Quick 自动拿到 token 并连上，显示 **38 个工具**。**全程不用手动复制任何 token**，过期了 Quick 自己用 refresh_token 续。
+
+> per-user 隔离要点：务必让 Quick 为**每个成员单独发起 OAuth**（Default OAuth app / DCR 模式），这样每人以自己钉钉身份授权、数据各自隔离；切勿用「管理员授权一次全员复用」的共享凭据模式（会导致所有人共用管理员身份）。
+
+### 方式 B：手动复制 Bearer（fallback）
+
+host 不支持 OAuth 向导时，走下面「员工接入：3 步」的手动流——浏览器打开 `/authorize`（不带 OAuth 参数），页面会返回一段长效 `Bearer` 让你复制粘贴。
+
+---
+
 ## 前置条件
 
 | 角色 | 条件 | 说明 |
@@ -38,7 +73,9 @@ Remote 的设计目标是**一次部署支持任意多个员工**，新员工接
 
 ---
 
-## 员工接入：3 步
+## 员工接入（方式 B：手动复制）：3 步
+
+> 这是 **fallback 路径**。host 支持 OAuth 向导时优先用上面的「方式 A」，可免去手动复制 + 自动续期。
 
 假设管理员给你的 CloudFront 域名是 `https://d512ohnwy06c3.cloudfront.net`（换成你们实际的）。
 

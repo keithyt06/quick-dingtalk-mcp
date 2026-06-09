@@ -77,6 +77,17 @@ const mod = await import("./index.ts");
 mod._setClients({ ddb: fakeDdb, ssm: fakeSsm });
 const { handler } = mod;
 
+import { createHash, randomBytes } from "node:crypto";
+const ev = (method: string, path: string, opts: any = {}) => ({
+  rawPath: path,
+  requestContext: { http: { path, method } },
+  queryStringParameters: opts.qs,
+  body: opts.body,
+  headers: opts.headers || {},
+  isBase64Encoded: false,
+}) as any;
+const form = (o: Record<string, string>) => new URLSearchParams(o).toString();
+
 beforeEach(() => {
   ddbStore.clear();
   smStore.clear();
@@ -186,4 +197,160 @@ test("E1: refresh 成功后保留 last_active(否则90天窗口失效)", async (
   const stored = JSON.parse(smStore.get("quick-dingtalk-mcp/users/ue1")!);
   assert.equal(stored.access_token, "NEW", "token 应已轮换");
   assert.equal(stored.last_active, la, "last_active 必须被保留");
+});
+
+// ---------------- Standard OAuth 2.1 Authorization Server ----------------
+
+test("GET /.well-known/oauth-authorization-server: RFC 8414 metadata", async () => {
+  const r = await handler(ev("GET", "/.well-known/oauth-authorization-server"), {} as any);
+  assert.equal((r as any).statusCode, 200);
+  const m = JSON.parse((r as any).body);
+  assert.equal(m.issuer, "https://auth.example.com");
+  assert.equal(m.token_endpoint, "https://auth.example.com/token");
+  assert.equal(m.registration_endpoint, "https://auth.example.com/register");
+  assert.deepEqual(m.code_challenge_methods_supported, ["S256"]);
+});
+
+test("GET /.well-known/oauth-protected-resource: RFC 9728 metadata", async () => {
+  const r = await handler(ev("GET", "/.well-known/oauth-protected-resource"), {} as any);
+  assert.equal((r as any).statusCode, 200);
+  const m = JSON.parse((r as any).body);
+  assert.deepEqual(m.authorization_servers, ["https://auth.example.com"]);
+});
+
+test("POST /register: DCR returns client_id + placeholder secret (basic)", async () => {
+  const r = await handler(ev("POST", "/register", {
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ redirect_uris: ["https://x.quicksight.aws.amazon.com/sn/oauthcallback"], token_endpoint_auth_method: "client_secret_basic" }),
+  }), {} as any);
+  assert.equal((r as any).statusCode, 201);
+  const body = JSON.parse((r as any).body);
+  assert.ok(body.client_id.startsWith("client_"));
+  assert.ok(body.client_secret.length > 0);
+  // Client record persisted in DDB under client# prefix
+  assert.ok([...ddbStore.keys()].some((k) => k.startsWith("client#")));
+});
+
+// Helper: register a client + run /authorize to get an mcp_code back via callback.
+async function runAuthCodeFlow(challenge: string) {
+  const reg = await handler(ev("POST", "/register", {
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ redirect_uris: ["https://quick.example.com/cb"], token_endpoint_auth_method: "client_secret_basic" }),
+  }), {} as any);
+  const clientId = JSON.parse((reg as any).body).client_id as string;
+
+  const auth = await handler(ev("GET", "/authorize", {
+    qs: { client_id: clientId, redirect_uri: "https://quick.example.com/cb", response_type: "code", code_challenge: challenge, code_challenge_method: "S256", state: "quickstate" },
+  }), {} as any);
+  assert.equal((auth as any).statusCode, 302);
+  // DingTalk state is the only raw (no #) key just written
+  const dingState = [...ddbStore.keys()].find((k) => !k.includes("#"))!;
+
+  fetchImpl = async (url) => {
+    if (url.includes("oauth2/userAccessToken")) return new Response(JSON.stringify({ accessToken: "AT", refreshToken: "RT", expiresIn: 7200, scope: "openid" }), { status: 200 });
+    if (url.includes("contact/users/me")) return new Response(JSON.stringify({ unionId: "uid-oauth" }), { status: 200 });
+    return new Response("nope", { status: 404 });
+  };
+  const cb = await handler(ev("GET", "/callback", { qs: { code: "ding-code", state: dingState } }), {} as any);
+  return { clientId, cb };
+}
+
+test("OAuth flow: /authorize→/callback 302s back to Quick with code+state", async () => {
+  const verifier = randomBytes(48).toString("base64url");
+  const challenge = createHash("sha256").update(verifier).digest("base64url");
+  const { cb } = await runAuthCodeFlow(challenge);
+  assert.equal((cb as any).statusCode, 302);
+  const loc = new URL((cb as any).headers.location);
+  assert.equal(loc.origin + loc.pathname, "https://quick.example.com/cb");
+  assert.ok(loc.searchParams.get("code"));
+  assert.equal(loc.searchParams.get("state"), "quickstate");
+  // user DingTalk token stored; a one-time code# persisted
+  assert.equal(smStore.size, 1);
+  assert.ok([...ddbStore.keys()].some((k) => k.startsWith("code#")));
+});
+
+test("POST /token authorization_code: valid PKCE → access+refresh", async () => {
+  const verifier = randomBytes(48).toString("base64url");
+  const challenge = createHash("sha256").update(verifier).digest("base64url");
+  const { clientId, cb } = await runAuthCodeFlow(challenge);
+  const code = new URL((cb as any).headers.location).searchParams.get("code")!;
+  const basic = Buffer.from(`${clientId}:anysecret`).toString("base64");
+
+  const r = await handler(ev("POST", "/token", {
+    headers: { "content-type": "application/x-www-form-urlencoded", authorization: `Basic ${basic}` },
+    body: form({ grant_type: "authorization_code", code, redirect_uri: "https://quick.example.com/cb", code_verifier: verifier }),
+  }), {} as any);
+  assert.equal((r as any).statusCode, 200);
+  const tok = JSON.parse((r as any).body);
+  assert.equal(tok.token_type, "Bearer");
+  assert.ok(tok.access_token && tok.refresh_token);
+  assert.equal(tok.expires_in, 3600);
+  // code consumed (one-time)
+  assert.ok(![...ddbStore.keys()].some((k) => k.startsWith("code#")));
+});
+
+test("POST /token authorization_code: wrong PKCE verifier → invalid_grant", async () => {
+  const verifier = randomBytes(48).toString("base64url");
+  const challenge = createHash("sha256").update(verifier).digest("base64url");
+  const { clientId, cb } = await runAuthCodeFlow(challenge);
+  const code = new URL((cb as any).headers.location).searchParams.get("code")!;
+  const basic = Buffer.from(`${clientId}:x`).toString("base64");
+  const r = await handler(ev("POST", "/token", {
+    headers: { "content-type": "application/x-www-form-urlencoded", authorization: `Basic ${basic}` },
+    body: form({ grant_type: "authorization_code", code, redirect_uri: "https://quick.example.com/cb", code_verifier: "WRONG-verifier" }),
+  }), {} as any);
+  assert.equal((r as any).statusCode, 400);
+  assert.equal(JSON.parse((r as any).body).error, "invalid_grant");
+});
+
+test("POST /token refresh_token: rotates, denies revoked user", async () => {
+  const verifier = randomBytes(48).toString("base64url");
+  const challenge = createHash("sha256").update(verifier).digest("base64url");
+  const { clientId, cb } = await runAuthCodeFlow(challenge);
+  const code = new URL((cb as any).headers.location).searchParams.get("code")!;
+  const basic = Buffer.from(`${clientId}:x`).toString("base64");
+  const first = await handler(ev("POST", "/token", {
+    headers: { "content-type": "application/x-www-form-urlencoded", authorization: `Basic ${basic}` },
+    body: form({ grant_type: "authorization_code", code, redirect_uri: "https://quick.example.com/cb", code_verifier: verifier }),
+  }), {} as any);
+  const rt = JSON.parse((first as any).body).refresh_token as string;
+
+  // refresh succeeds while user token is healthy
+  const r2 = await handler(ev("POST", "/token", {
+    headers: { "content-type": "application/x-www-form-urlencoded", authorization: `Basic ${basic}` },
+    body: form({ grant_type: "refresh_token", refresh_token: rt }),
+  }), {} as any);
+  assert.equal((r2 as any).statusCode, 200);
+  assert.ok(JSON.parse((r2 as any).body).access_token);
+
+  // simulate revocation (ops.sh deletes the user secret) → refresh denied
+  smStore.clear();
+  const r3 = await handler(ev("POST", "/token", {
+    headers: { "content-type": "application/x-www-form-urlencoded", authorization: `Basic ${basic}` },
+    body: form({ grant_type: "refresh_token", refresh_token: rt }),
+  }), {} as any);
+  assert.equal((r3 as any).statusCode, 400);
+  assert.equal(JSON.parse((r3 as any).body).error, "invalid_grant");
+});
+
+test("/authorize without OAuth params → HTML fallback still works", async () => {
+  fetchImpl = async (url) => {
+    if (url.includes("oauth2/userAccessToken")) return new Response(JSON.stringify({ accessToken: "AT", refreshToken: "RT", expiresIn: 7200, scope: "openid" }), { status: 200 });
+    if (url.includes("contact/users/me")) return new Response(JSON.stringify({ unionId: "uid-fallback" }), { status: 200 });
+    return new Response("nope", { status: 404 });
+  };
+  await handler(ev("GET", "/authorize", { qs: {} }), {} as any);
+  const dingState = [...ddbStore.keys()].find((k) => !k.includes("#"))!;
+  const cb = await handler(ev("GET", "/callback", { qs: { code: "c", state: dingState } }), {} as any);
+  assert.equal((cb as any).statusCode, 200);
+  assert.match((cb as any).body as string, /Bearer /);
+});
+
+test("POST /token: unsupported grant → 400", async () => {
+  const r = await handler(ev("POST", "/token", {
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: form({ grant_type: "password" }),
+  }), {} as any);
+  assert.equal((r as any).statusCode, 400);
+  assert.equal(JSON.parse((r as any).body).error, "unsupported_grant_type");
 });

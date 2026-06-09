@@ -5,6 +5,7 @@ process.env.AWS_REGION = "us-east-1";
 process.env.HMAC_KEY_PARAM = "/test/hmac";
 process.env.AGENTCORE_RUNTIME_URL = "https://bedrock-agentcore.us-east-1.amazonaws.com/runtimes/test/invocations";
 process.env.UPSTREAM_TIMEOUT_MS = "1000";
+process.env.OAUTH_BASE_URL = "https://auth.example.com";
 
 const HMAC_KEY = "00".repeat(32);
 
@@ -72,6 +73,14 @@ test("valid token but no SM entry → 401 no-user-token", async () => {
   const r = await handler(event(tok), {} as any);
   assert.equal((r as any).statusCode, 401);
   assert.match((r as any).body, /no-user-token/);
+});
+
+test("401 carries RFC 9728 WWW-Authenticate pointing at resource metadata", async () => {
+  const r = await handler({ headers: {}, body: "", requestContext: { http: { method: "POST", path: "/mcp" } } } as any, {} as any);
+  assert.equal((r as any).statusCode, 401);
+  const wa = (r as any).headers["www-authenticate"] as string;
+  assert.match(wa, /^Bearer resource_metadata=/);
+  assert.match(wa, /\/\.well-known\/oauth-protected-resource/);
 });
 
 test("near-expiry user token → 503", async () => {

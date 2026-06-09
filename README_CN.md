@@ -138,28 +138,15 @@ curl -fsSL https://raw.githubusercontent.com/keithyt06/quick-dingtalk-mcp/main/p
 
 > 前置：一个钉钉应用（AppKey/AppSecret），并把 `<域名>/callback` 注册为其重定向 URL；`us-east-1` 的 AWS 凭证；Docker；Node ≥ 22.6。详见 [docs/remote-operations.md](./docs/remote-operations.md)。
 
-### 成员：接入 Amazon Quick Desktop（3 步自助）
+### 成员：接入 Amazon Quick Desktop
 
-1. **授权** —— 浏览器打开管理员给的 `https://<域名>/authorize`，用*你自己*的钉钉账号同意，复制返回的 `Bearer ...` token。**只需做这一次**——token 只要在用就长期有效（连续 90 天不用才需重新授权）。
-2. **添加 MCP server**，在 **Amazon Quick Desktop → Settings → Capabilities → MCP → + Add MCP**：
+网关本身就是一个标准 **OAuth 2.1 Authorization Server**（PKCE + 动态客户端注册），所以有两条接入路径：
 
-   | 字段 | 值 |
-   |---|---|
-   | Connection type | **Remote / HTTP**（`streamable-http`） |
-   | URL | `https://<域名>/mcp` |
-   | Header | `Authorization: Bearer <你的 token>` |
+**推荐 —— OAuth 向导（免复制 token）**：在 Quick 的 MCP 连接器里选 OAuth，填 `Authorization URL = https://<域名>/authorize`、`Token URL = https://<域名>/token`、`MCP Endpoint = https://<域名>/mcp`、`Scope = openid`（Client ID/Secret 填任意非空占位串——网关用 PKCE 鉴权，不校验 secret）。Quick 随后弹出登录按钮，你用*自己的*钉钉账号授权，它就自动接好 token。access token 短期有效、Quick **自动用 refresh_token 续期**——你授权一次，再也不用碰 token。
 
-   ```json
-   {
-     "transport": "streamable-http",
-     "url": "https://<域名>/mcp",
-     "headers": { "Authorization": "Bearer <你的 token>" },
-     "timeout": 300
-   }
-   ```
-3. **验证** —— 说一句*"用 dingtalk 查一下我自己的资料"*，它会返回你真实的企业/部门信息。
+**fallback —— 手动复制 Bearer**：host 不支持 OAuth 向导时，浏览器打开 `https://<域名>/authorize`，用你自己的钉钉账号同意，把返回的 `Bearer ...` 复制进连接器的 `Authorization` header（`Connection type: Remote / HTTP`、`streamable-http`、`URL = https://<域名>/mcp`）。只要在用就长期有效（连续 90 天不用才需重新授权）。
 
-你完全不需要碰钉钉开放平台——应用是管理员建的，你只是用自己的账号授权。
+随后**验证** —— 说一句*"用 dingtalk 查一下我自己的资料"*，它会返回你真实的企业/部门信息。你完全不需要碰钉钉开放平台——应用是管理员建的，你只是用自己的账号授权。
 
 完整接入 + 故障排查 → **[docs/remote-quick-desktop.md](./docs/remote-quick-desktop.md)**
 

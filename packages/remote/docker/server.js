@@ -33,7 +33,7 @@ const tier1 = loadSharedJson("tier1.json");
 const sharedSrc = await import(join(__dirname, "shared", "src", "index.mjs"));
 const {
   toToolName, buildInputSchema, toCliArgs, InputError,
-  searchCatalog, rewritePAT, parsePATError, isPATExitCode, annotationsFor,
+  searchCatalog, rewritePAT, parsePATError, isPATExitCode, annotationsFor, toolDescription,
 } = sharedSrc;
 
 // --- config ---
@@ -67,7 +67,7 @@ function buildToolList() {
     if (!found) continue;
     tools.push({
       name: toolName,
-      description: found.cmd.description,
+      description: toolDescription(found.cmd),
       inputSchema: buildInputSchema(found.cmd),
       annotations: annotationsFor(found.cmd),
     });
@@ -77,7 +77,7 @@ function buildToolList() {
     if (!found) continue;
     tools.push({
       name: aliasName,
-      description: `[deprecated, use ${realName}] ${found.cmd.description}`,
+      description: `[deprecated, use ${realName}] ${toolDescription(found.cmd)}`,
       inputSchema: buildInputSchema(found.cmd),
       annotations: annotationsFor(found.cmd),
     });

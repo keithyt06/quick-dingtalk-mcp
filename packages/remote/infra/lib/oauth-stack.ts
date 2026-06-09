@@ -39,7 +39,14 @@ export class OAuthStack extends Stack {
   constructor(scope: Construct, id: string, props: OAuthStackProps) {
     super(scope, id, props);
 
-    // --- DynamoDB (OAuth state, 5min TTL) ---
+    // --- DynamoDB (OAuth state + Authorization Server records, per-item TTL) ---
+    // Single table keyed by `state`, with `ttl` for auto-expiry. Holds several
+    // record kinds distinguished by key prefix (see token-refresh-shim):
+    //   <raw>        DingTalk PKCE state            5min
+    //   client#<id>  DCR-registered client          ~13mo
+    //   sess#<id>    in-flight Quick OAuth session  10min
+    //   code#<v>     one-time mcp authorization_code 5min
+    // access/refresh tokens are stateless HMAC, so they are NOT stored here.
     const stateTable = new ddb.Table(this, "OAuthStateTable", {
       partitionKey: { name: "state", type: ddb.AttributeType.STRING },
       timeToLiveAttribute: "ttl",
@@ -149,6 +156,37 @@ export class OAuthStack extends Stack {
       path: "/callback",
       methods: [apigw.HttpMethod.GET],
       integration: new integrations.HttpLambdaIntegration("CallbackInt", this.tokenRefreshShim),
+    });
+    // Standard OAuth 2.1 Authorization Server endpoints (RFC 8414/9728/7591 +
+    // OAuth2.1 token), all served by the same tokenRefreshShim Lambda. These let
+    // Amazon Quick's MCP OAuth wizard authorize automatically (no hand-copied
+    // Bearer). The /authorize + /callback routes above are shared with the flow.
+    const shimInt = (id: string) => new integrations.HttpLambdaIntegration(id, this.tokenRefreshShim);
+    this.httpApi.addRoutes({
+      path: "/.well-known/oauth-authorization-server",
+      methods: [apigw.HttpMethod.GET],
+      integration: shimInt("AsMetadataInt"),
+    });
+    this.httpApi.addRoutes({
+      // RFC 9728 resource metadata; greedy suffix covers per-resource paths too.
+      path: "/.well-known/oauth-protected-resource/{proxy+}",
+      methods: [apigw.HttpMethod.GET],
+      integration: shimInt("PrMetadataProxyInt"),
+    });
+    this.httpApi.addRoutes({
+      path: "/.well-known/oauth-protected-resource",
+      methods: [apigw.HttpMethod.GET],
+      integration: shimInt("PrMetadataInt"),
+    });
+    this.httpApi.addRoutes({
+      path: "/register",
+      methods: [apigw.HttpMethod.POST],
+      integration: shimInt("RegisterInt"),
+    });
+    this.httpApi.addRoutes({
+      path: "/token",
+      methods: [apigw.HttpMethod.POST],
+      integration: shimInt("TokenInt"),
     });
     this.httpApi.addRoutes({
       path: "/mcp",

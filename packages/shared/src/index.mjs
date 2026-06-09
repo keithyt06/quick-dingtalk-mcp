@@ -14,7 +14,7 @@ export {
   parsePATError,
   isPATExitCode,
 } from "./errors.mjs";
-export { annotationsFor } from "./annotations.mjs";
+export { annotationsFor, toolDescription, isIrreversible } from "./annotations.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 

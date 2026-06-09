@@ -10,6 +10,16 @@ import { SSMClient, GetParameterCommand } from "@aws-sdk/client-ssm";
 import { log } from "../shared/log.ts";
 import { signMcpToken, verifyIncrAuthToken } from "../shared/hmac.ts";
 import { getUserToken, putUserToken, listUserSecrets, type UserToken } from "../shared/sm-client.ts";
+import {
+  verifyPkceS256,
+  extractClientCredentials,
+  authServerMetadata,
+  protectedResourceMetadata,
+  buildDcrRegistration,
+  genAuthCode,
+  genRefreshToken,
+  type DcrRequest,
+} from "../shared/oauth.ts";
 
 const REGION = process.env.AWS_REGION || "us-east-1";
 const DDB_TABLE = process.env.OAUTH_STATE_TABLE!;
@@ -25,6 +35,12 @@ const REFRESH_BUFFER_SEC = 60 * 60; // refresh if expires_at - now < 60min
 // 这里只保留一个远期硬上限(~13 个月 > 90 天窗口),作纵深防御:
 // 即便活跃窗口逻辑失效,token 也终会自然过期,不会变成永久不可吊销的裸钥匙。
 const MCP_TOKEN_MAX_LIFETIME_SEC = 400 * 86400;
+// OAuth 2.1 path (Quick wizard): short access + auto-refresh. access_token signs
+// 1h; the host silently refreshes via refresh_token (90d). The 90-day idle
+// window + 13-month hard ceiling in mcp-middleware still apply to both paths as
+// defense-in-depth — OAuth just gives Quick a token it can rotate itself.
+const OAUTH_ACCESS_TTL_SEC = parseInt(process.env.OAUTH_ACCESS_TTL_SEC || String(3600), 10);
+const OAUTH_REFRESH_TTL_SEC = parseInt(process.env.OAUTH_REFRESH_TTL_SEC || String(90 * 86400), 10);
 // dws v1.0.32 requests `openid corpid` by default (auth/endpoints.go: DefaultScopes).
 // `corpid` is needed for the enterprise context (corpId) most org-level APIs require.
 const DEFAULT_SCOPES = (process.env.DEFAULT_SCOPES || "openid corpid").split(/[, ]+/).map(s => s.trim()).filter(Boolean);
@@ -66,7 +82,10 @@ function pkceChallenge(verifier: string): string {
 }
 
 // --- DDB state store ---
-async function putState(state: string, payload: { verifier: string; scopes: string[]; uid?: string }): Promise<void> {
+// `oauthSessionId` links a DingTalk round-trip back to an in-flight Quick OAuth
+// session (present only on the standard OAuth path; absent on the HTML fallback).
+type StatePayload = { verifier: string; scopes: string[]; uid?: string; oauthSessionId?: string };
+async function putState(state: string, payload: StatePayload): Promise<void> {
   const ttl = Math.floor(Date.now() / 1000) + 300; // 5min
   await ddb.send(new PutItemCommand({
     TableName: DDB_TABLE,
@@ -78,7 +97,7 @@ async function putState(state: string, payload: { verifier: string; scopes: stri
   }));
 }
 
-async function consumeState(state: string): Promise<{ verifier: string; scopes: string[]; uid?: string } | null> {
+async function consumeState(state: string): Promise<StatePayload | null> {
   const r = await ddb.send(new GetItemCommand({
     TableName: DDB_TABLE,
     Key: { state: { S: state } },
@@ -92,6 +111,48 @@ async function consumeState(state: string): Promise<{ verifier: string; scopes: 
   if (!payload) return null;
   return JSON.parse(payload);
 }
+
+// --- OAuth Authorization Server records (same OAuthStateTable, key-prefixed) ---
+// We reuse the existing single-table + `state` partition key + `ttl` attribute.
+// Record kinds are distinguished by key prefix; TTL varies per kind.
+//   client#<id>  registered DCR client (redirect_uri allowlist) — long-lived
+//   sess#<id>    in-flight Quick→gateway authorize session       — 10min
+//   code#<v>     one-time mcp authorization_code                  — 5min
+//   refresh#<v>  opaque refresh_token → userId                    — 90d
+// The access_token is stateless HMAC (no record). The refresh_token IS stored
+// (opaque) so it can be rotated: each use deletes the old record and writes a
+// new one, which both refreshes the 90d TTL and makes a replayed old token fail.
+type ClientRecord = { redirectUris: string[]; authMethod: string; clientName: string };
+type OAuthSession = { clientId: string; redirectUri: string; codeChallenge: string; clientState: string; scope: string };
+type McpCodeRecord = { userId: string; clientId: string; redirectUri: string; codeChallenge: string; scope: string };
+type RefreshRecord = { userId: string; clientId: string; scope: string };
+
+async function ddbPut(key: string, payload: unknown, ttlSec: number): Promise<void> {
+  await ddb.send(new PutItemCommand({
+    TableName: DDB_TABLE,
+    Item: { state: { S: key }, payload: { S: JSON.stringify(payload) }, ttl: { N: String(Math.floor(Date.now() / 1000) + ttlSec) } },
+  }));
+}
+async function ddbGet<T>(key: string): Promise<T | null> {
+  const r = await ddb.send(new GetItemCommand({ TableName: DDB_TABLE, Key: { state: { S: key } } }));
+  const payload = r.Item?.payload?.S;
+  return payload ? (JSON.parse(payload) as T) : null;
+}
+async function ddbDelete(key: string): Promise<void> {
+  await ddb.send(new DeleteItemCommand({ TableName: DDB_TABLE, Key: { state: { S: key } } }));
+}
+
+const putClient = (id: string, rec: ClientRecord) => ddbPut(`client#${id}`, rec, 400 * 86400);
+const getClient = (id: string) => ddbGet<ClientRecord>(`client#${id}`);
+const putOAuthSession = (id: string, rec: OAuthSession) => ddbPut(`sess#${id}`, rec, 600);
+const getOAuthSession = (id: string) => ddbGet<OAuthSession>(`sess#${id}`);
+const delOAuthSession = (id: string) => ddbDelete(`sess#${id}`);
+const putMcpCode = (code: string, rec: McpCodeRecord) => ddbPut(`code#${code}`, rec, 300);
+const getMcpCode = (code: string) => ddbGet<McpCodeRecord>(`code#${code}`);
+const delMcpCode = (code: string) => ddbDelete(`code#${code}`);
+const putRefresh = (tok: string, rec: RefreshRecord) => ddbPut(`refresh#${tok}`, rec, OAUTH_REFRESH_TTL_SEC);
+const getRefresh = (tok: string) => ddbGet<RefreshRecord>(`refresh#${tok}`);
+const delRefresh = (tok: string) => ddbDelete(`refresh#${tok}`);
 
 // --- DingTalk OAuth ---
 async function exchangeCodeForToken(code: string, verifier: string): Promise<{ access_token: string; refresh_token: string; expires_in: number; scope: string }> {
@@ -161,6 +222,38 @@ async function fetchUserId(accessToken: string): Promise<string> {
 }
 
 // --- HTTP route handlers ---
+
+// Validate a standard-OAuth /authorize request and persist its session.
+// Returns { sessionId } on success or { error, error_description } on failure.
+async function beginOAuthSession(
+  qs: Record<string, string | undefined>,
+): Promise<{ sessionId: string } | { error: string; error_description: string }> {
+  const { client_id, redirect_uri, code_challenge, code_challenge_method, response_type, state: clientState, scope } = qs;
+  if (response_type && response_type !== "code") {
+    return { error: "unsupported_response_type", error_description: "only response_type=code" };
+  }
+  if (!client_id) return { error: "invalid_request", error_description: "missing client_id" };
+  if (!redirect_uri) return { error: "invalid_request", error_description: "missing redirect_uri" };
+  if (!code_challenge) return { error: "invalid_request", error_description: "PKCE required: missing code_challenge" };
+  if (code_challenge_method && code_challenge_method !== "S256") {
+    return { error: "invalid_request", error_description: "only code_challenge_method=S256" };
+  }
+  const client = await getClient(client_id);
+  if (!client) return { error: "invalid_client", error_description: "unknown client_id" };
+  if (!client.redirectUris.includes(redirect_uri)) {
+    return { error: "invalid_request", error_description: "redirect_uri not in registered allowlist" };
+  }
+  const sessionId = randomBytes(16).toString("base64url");
+  await putOAuthSession(sessionId, {
+    clientId: client_id,
+    redirectUri: redirect_uri,
+    codeChallenge: code_challenge,
+    clientState: clientState || "",
+    scope: scope || "openid",
+  });
+  return { sessionId };
+}
+
 async function handleAuthorize(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> {
   const qs = event.queryStringParameters || {};
   let scopes = DEFAULT_SCOPES;
@@ -181,10 +274,23 @@ async function handleAuthorize(event: APIGatewayProxyEventV2): Promise<APIGatewa
     scopes = [...new Set([...DEFAULT_SCOPES, ...qs.extra_scope.split(/[, ]+/).filter(Boolean)])];
   }
 
+  // Standard OAuth path: Quick (or any MCP host) sends client_id + redirect_uri
+  // + code_challenge. We validate, persist an OAuth session, and thread its id
+  // through `state` so the DingTalk callback can mint an mcp_code for Quick.
+  // Absent these params → HTML fallback path (oauthSessionId stays undefined).
+  let oauthSessionId: string | undefined;
+  if (qs.client_id || qs.code_challenge || qs.redirect_uri) {
+    const err = await beginOAuthSession(qs);
+    if ("error" in err) {
+      return { statusCode: 400, headers: { "cache-control": "no-store" }, body: JSON.stringify(err) };
+    }
+    oauthSessionId = err.sessionId;
+  }
+
   const verifier = pkceVerifier();
   const challenge = pkceChallenge(verifier);
   const state = randomBytes(16).toString("base64url");
-  await putState(state, { verifier, scopes, uid: userId });
+  await putState(state, { verifier, scopes, uid: userId, oauthSessionId });
 
   const u = new URL(DINGTALK_AUTHORIZE_URL);
   u.searchParams.set("client_id", DINGTALK_APP_ID);
@@ -227,6 +333,30 @@ async function handleCallback(event: APIGatewayProxyEventV2): Promise<APIGateway
   };
   await putUserToken(userId, userToken);
 
+  // Standard OAuth path: mint a one-time mcp_code bound to this user + the
+  // session's client/redirect/PKCE, then 302 back to Quick's redirect_uri.
+  // Quick exchanges the code at /token (verifying PKCE) for access+refresh.
+  if (stateData.oauthSessionId) {
+    const session = await getOAuthSession(stateData.oauthSessionId);
+    if (!session) return { statusCode: 400, body: "oauth session expired" };
+    const code = genAuthCode();
+    await putMcpCode(code, {
+      userId,
+      clientId: session.clientId,
+      redirectUri: session.redirectUri,
+      codeChallenge: session.codeChallenge,
+      scope: session.scope,
+    });
+    await delOAuthSession(stateData.oauthSessionId);
+    const redirect = new URL(session.redirectUri);
+    redirect.searchParams.set("code", code);
+    if (session.clientState) redirect.searchParams.set("state", session.clientState);
+    return { statusCode: 302, headers: { location: redirect.toString(), "cache-control": "no-store" }, body: "" };
+  }
+
+  // Fallback path (browser opened /authorize directly, no OAuth host): hand back
+  // a long-lived Bearer to paste manually. These users can't auto-refresh, so
+  // the token keeps the 13-month ceiling + relies on the idle window.
   const hmacKey = await getHmacKey();
   const mcpToken = signMcpToken({ userId, expiresInSec: MCP_TOKEN_MAX_LIFETIME_SEC }, hmacKey);
 
@@ -237,6 +367,94 @@ async function handleCallback(event: APIGatewayProxyEventV2): Promise<APIGateway
 <pre>Bearer ${mcpToken}</pre>
 <p>只要在用就长期有效，无需反复授权；仅当连续 90 天未使用才需重新跑一次授权。</p>`;
   return { statusCode: 200, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" }, body: html };
+}
+
+// --- OAuth Authorization Server endpoints ---
+function jsonResult(statusCode: number, body: unknown): APIGatewayProxyResultV2 {
+  return {
+    statusCode,
+    headers: { "content-type": "application/json", "cache-control": "no-store" },
+    body: JSON.stringify(body),
+  };
+}
+
+function parseBody(event: APIGatewayProxyEventV2): Record<string, any> {
+  const raw = event.body || "";
+  const ct = (event.headers?.["content-type"] || event.headers?.["Content-Type"] || "").toLowerCase();
+  const decoded = event.isBase64Encoded ? Buffer.from(raw, "base64").toString("utf8") : raw;
+  if (!decoded) return {};
+  if (ct.includes("application/json")) {
+    try { return JSON.parse(decoded); } catch { return {}; }
+  }
+  // form-urlencoded (Quick's /token uses this)
+  const out: Record<string, string> = {};
+  for (const [k, v] of new URLSearchParams(decoded)) out[k] = v;
+  return out;
+}
+
+// RFC 7591 Dynamic Client Registration.
+async function handleRegister(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> {
+  const body = parseBody(event) as DcrRequest;
+  const r = buildDcrRegistration(body, Math.floor(Date.now() / 1000));
+  if (!r.ok) return jsonResult(400, { error: r.error, error_description: r.error_description });
+  await putClient(r.clientId, { redirectUris: r.redirectUris, authMethod: r.authMethod, clientName: r.clientName });
+  log.info("DCR registered", { clientId: r.clientId, authMethod: r.authMethod });
+  return jsonResult(201, r.response);
+}
+
+// OAuth 2.1 Token endpoint: authorization_code + refresh_token grants.
+async function handleToken(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> {
+  const body = parseBody(event);
+  const grant = body.grant_type;
+  const { clientId } = extractClientCredentials(event.headers, body);
+  const hmacKey = await getHmacKey();
+
+  if (grant === "authorization_code") {
+    const { code, redirect_uri, code_verifier } = body;
+    if (!code || !clientId || !redirect_uri || !code_verifier) {
+      return jsonResult(400, { error: "invalid_request", error_description: "missing code/client_id/redirect_uri/code_verifier" });
+    }
+    const rec = await getMcpCode(code);
+    if (!rec) return jsonResult(400, { error: "invalid_grant", error_description: "authorization_code invalid or expired" });
+    if (rec.clientId !== clientId) return jsonResult(400, { error: "invalid_client", error_description: "client_id mismatch" });
+    if (rec.redirectUri !== redirect_uri) return jsonResult(400, { error: "invalid_grant", error_description: "redirect_uri mismatch" });
+    if (!verifyPkceS256(code_verifier, rec.codeChallenge)) {
+      return jsonResult(400, { error: "invalid_grant", error_description: "PKCE verification failed" });
+    }
+    await delMcpCode(code); // one-time
+    const access_token = signMcpToken({ userId: rec.userId, expiresInSec: OAUTH_ACCESS_TTL_SEC }, hmacKey);
+    const refresh_token = genRefreshToken();
+    await putRefresh(refresh_token, { userId: rec.userId, clientId, scope: rec.scope });
+    log.info("token issued (authorization_code)", { userId: rec.userId, clientId });
+    return jsonResult(200, { access_token, token_type: "Bearer", expires_in: OAUTH_ACCESS_TTL_SEC, refresh_token, scope: rec.scope });
+  }
+
+  if (grant === "refresh_token") {
+    const { refresh_token } = body;
+    if (!refresh_token) return jsonResult(400, { error: "invalid_request", error_description: "missing refresh_token" });
+    const rrec = await getRefresh(refresh_token);
+    if (!rrec) return jsonResult(400, { error: "invalid_grant", error_description: "refresh_token invalid, expired, or already used" });
+    if (clientId && rrec.clientId !== clientId) {
+      return jsonResult(400, { error: "invalid_client", error_description: "client_id mismatch" });
+    }
+    // Revocation check: if the user's DingTalk token was revoked (ops.sh) or
+    // flagged, deny — the access token would be useless anyway.
+    const ut = await getUserToken(rrec.userId);
+    if (!ut || ut.needs_reauth) {
+      await delRefresh(refresh_token);
+      return jsonResult(400, { error: "invalid_grant", error_description: "user re-authorization required" });
+    }
+    // Rotate: invalidate the presented token, issue a fresh one. A replayed old
+    // token then fails (getRefresh returns null) — OAuth 2.1 reuse detection.
+    await delRefresh(refresh_token);
+    const access_token = signMcpToken({ userId: rrec.userId, expiresInSec: OAUTH_ACCESS_TTL_SEC }, hmacKey);
+    const newRefresh = genRefreshToken();
+    await putRefresh(newRefresh, { userId: rrec.userId, clientId: rrec.clientId, scope: rrec.scope });
+    log.info("token refreshed", { userId: rrec.userId, clientId: rrec.clientId });
+    return jsonResult(200, { access_token, token_type: "Bearer", expires_in: OAUTH_ACCESS_TTL_SEC, refresh_token: newRefresh, scope: rrec.scope || ut.scope || "openid" });
+  }
+
+  return jsonResult(400, { error: "unsupported_grant_type", error_description: "only authorization_code and refresh_token" });
 }
 
 async function handleRefreshOne(userId: string): Promise<{ ok: boolean; reason?: string }> {
@@ -296,6 +514,15 @@ export const handler = async (
   const method = apiEvent.requestContext?.http?.method || "GET";
 
   try {
+    // OAuth Authorization Server metadata (RFC 8414 / 9728) — GET, public.
+    if (method === "GET" && path.endsWith("/.well-known/oauth-authorization-server")) {
+      return jsonResult(200, authServerMetadata(OAUTH_BASE_URL));
+    }
+    if (method === "GET" && path.includes("/.well-known/oauth-protected-resource")) {
+      return jsonResult(200, protectedResourceMetadata(OAUTH_BASE_URL, `${OAUTH_BASE_URL}/mcp`));
+    }
+    if (method === "POST" && path.endsWith("/register")) return await handleRegister(apiEvent);
+    if (method === "POST" && path.endsWith("/token")) return await handleToken(apiEvent);
     if (method === "GET" && path.endsWith("/authorize")) return await handleAuthorize(apiEvent);
     if (method === "GET" && path.endsWith("/callback")) return await handleCallback(apiEvent);
     return { statusCode: 404, body: "not found" };
@@ -317,4 +544,7 @@ export const _internals = {
   handleAuthorize,
   handleCallback,
   handleRefreshOne,
+  handleRegister,
+  handleToken,
+  beginOAuthSession,
 };
