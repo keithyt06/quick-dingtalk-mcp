@@ -109,6 +109,9 @@ async function consumeState(state: string): Promise<StatePayload | null> {
   }));
   const payload = r.Item.payload?.S;
   if (!payload) return null;
+  // Reject past-ttl state in code (DynamoDB TTL sweep is best-effort/laggy).
+  const ttl = r.Item.ttl?.N;
+  if (ttl && Math.floor(Date.now() / 1000) > Number(ttl)) return null;
   return JSON.parse(payload);
 }
 
@@ -136,7 +139,13 @@ async function ddbPut(key: string, payload: unknown, ttlSec: number): Promise<vo
 async function ddbGet<T>(key: string): Promise<T | null> {
   const r = await ddb.send(new GetItemCommand({ TableName: DDB_TABLE, Key: { state: { S: key } } }));
   const payload = r.Item?.payload?.S;
-  return payload ? (JSON.parse(payload) as T) : null;
+  if (!payload) return null;
+  // Enforce expiry in code, not just via DynamoDB's `ttl` attribute — TTL
+  // deletion is best-effort and can lag hours, so an expired code/session/
+  // refresh record may still be physically present. Treat past-ttl as absent.
+  const ttl = r.Item?.ttl?.N;
+  if (ttl && Math.floor(Date.now() / 1000) > Number(ttl)) return null;
+  return JSON.parse(payload) as T;
 }
 async function ddbDelete(key: string): Promise<void> {
   await ddb.send(new DeleteItemCommand({ TableName: DDB_TABLE, Key: { state: { S: key } } }));
@@ -278,8 +287,14 @@ async function handleAuthorize(event: APIGatewayProxyEventV2): Promise<APIGatewa
   // + code_challenge. We validate, persist an OAuth session, and thread its id
   // through `state` so the DingTalk callback can mint an mcp_code for Quick.
   // Absent these params → HTML fallback path (oauthSessionId stays undefined).
+  //
+  // Mutually exclusive with the incremental-auth (`?t=`) path: `?t=` sets userId
+  // from a signed incr token WITHOUT a fresh DingTalk consent, so it must never
+  // also open an OAuth session (that would mint an authorization_code for an
+  // arbitrary client_id bound to that uid — a consent bypass). Incremental auth
+  // is its own flow; if `?t=` is present we ignore any OAuth params.
   let oauthSessionId: string | undefined;
-  if (qs.client_id || qs.code_challenge || qs.redirect_uri) {
+  if (!qs.t && (qs.client_id || qs.code_challenge || qs.redirect_uri)) {
     const err = await beginOAuthSession(qs);
     if ("error" in err) {
       return { statusCode: 400, headers: { "cache-control": "no-store" }, body: JSON.stringify(err) };
@@ -432,9 +447,14 @@ async function handleToken(event: APIGatewayProxyEventV2): Promise<APIGatewayPro
   if (grant === "refresh_token") {
     const { refresh_token } = body;
     if (!refresh_token) return jsonResult(400, { error: "invalid_request", error_description: "missing refresh_token" });
+    // Require client_id and bind it to the token's owning client — same as the
+    // authorization_code grant. Without this, a leaked refresh_token could be
+    // rotated by anyone presenting no client identity at all (the old
+    // `clientId && …` short-circuit skipped the check when client_id was absent).
+    if (!clientId) return jsonResult(400, { error: "invalid_client", error_description: "missing client_id" });
     const rrec = await getRefresh(refresh_token);
     if (!rrec) return jsonResult(400, { error: "invalid_grant", error_description: "refresh_token invalid, expired, or already used" });
-    if (clientId && rrec.clientId !== clientId) {
+    if (rrec.clientId !== clientId) {
       return jsonResult(400, { error: "invalid_client", error_description: "client_id mismatch" });
     }
     // Revocation check: if the user's DingTalk token was revoked (ops.sh) or

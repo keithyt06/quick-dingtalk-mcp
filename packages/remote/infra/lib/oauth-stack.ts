@@ -51,8 +51,13 @@ export class OAuthStack extends Stack {
       partitionKey: { name: "state", type: ddb.AttributeType.STRING },
       timeToLiveAttribute: "ttl",
       billingMode: ddb.BillingMode.PAY_PER_REQUEST,
-      removalPolicy: RemovalPolicy.DESTROY,
-      pointInTimeRecovery: false,
+      // RETAIN + PITR: this table holds durable identity records now (DCR
+      // clients ~400d, refresh tokens 90d), not just disposable 5-min state. A
+      // table-replacing deploy must NOT silently drop them — that would log out
+      // the whole org with no recovery. RETAIN keeps the old table on replace;
+      // PITR allows point-in-time restore.
+      removalPolicy: RemovalPolicy.RETAIN,
+      pointInTimeRecovery: true,
     });
 
     // --- SSM HMAC key (auto-generated; rotated manually) ---

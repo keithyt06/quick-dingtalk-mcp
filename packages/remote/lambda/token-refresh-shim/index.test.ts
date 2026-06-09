@@ -18,10 +18,15 @@ const ddbStore = new Map<string, any>();
 const fakeDdb = {
   send: async (cmd: any) => {
     const op = cmd.constructor.name;
-    if (op === "PutItemCommand") { ddbStore.set(cmd.input.Item.state.S, cmd.input.Item.payload.S); return {}; }
+    if (op === "PutItemCommand") {
+      // Store payload + ttl so ddbGet's in-code expiry check can be exercised.
+      ddbStore.set(cmd.input.Item.state.S, { payload: cmd.input.Item.payload.S, ttl: cmd.input.Item.ttl?.N });
+      return {};
+    }
     if (op === "GetItemCommand") {
       const v = ddbStore.get(cmd.input.Key.state.S);
-      return v ? { Item: { state: { S: cmd.input.Key.state.S }, payload: { S: v } } } : {};
+      if (!v) return {};
+      return { Item: { state: { S: cmd.input.Key.state.S }, payload: { S: v.payload }, ...(v.ttl ? { ttl: { N: v.ttl } } : {}) } };
     }
     if (op === "DeleteItemCommand") { ddbStore.delete(cmd.input.Key.state.S); return {}; }
     throw new Error(`unknown ddb op ${op}`);
@@ -76,6 +81,7 @@ sm._setClient(smFake);
 const mod = await import("./index.ts");
 mod._setClients({ ddb: fakeDdb, ssm: fakeSsm });
 const { handler } = mod;
+const { signIncrAuthToken } = await import("../shared/hmac.ts");
 
 import { createHash, randomBytes } from "node:crypto";
 const ev = (method: string, path: string, opts: any = {}) => ({
@@ -353,4 +359,81 @@ test("POST /token: unsupported grant → 400", async () => {
   }), {} as any);
   assert.equal((r as any).statusCode, 400);
   assert.equal(JSON.parse((r as any).body).error, "unsupported_grant_type");
+});
+
+// ---- code review backlog fixes (2026-06-09) ----
+
+test("review#4: refresh_token without client_id → 400 (no anonymous rotation)", async () => {
+  const verifier = randomBytes(48).toString("base64url");
+  const challenge = createHash("sha256").update(verifier).digest("base64url");
+  const { clientId, cb } = await runAuthCodeFlow(challenge);
+  const code = new URL((cb as any).headers.location).searchParams.get("code")!;
+  const basic = Buffer.from(`${clientId}:x`).toString("base64");
+  const first = await handler(ev("POST", "/token", {
+    headers: { "content-type": "application/x-www-form-urlencoded", authorization: `Basic ${basic}` },
+    body: form({ grant_type: "authorization_code", code, redirect_uri: "https://quick.example.com/cb", code_verifier: verifier }),
+  }), {} as any);
+  const rt = JSON.parse((first as any).body).refresh_token as string;
+  // refresh with NO Authorization header / no client_id must be rejected
+  const r = await handler(ev("POST", "/token", {
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: form({ grant_type: "refresh_token", refresh_token: rt }),
+  }), {} as any);
+  assert.equal((r as any).statusCode, 400);
+  assert.equal(JSON.parse((r as any).body).error, "invalid_client");
+});
+
+test("review#3: ?t= incremental-auth never opens an OAuth session (no consent-bypass code mint)", async () => {
+  // Seed a user + a valid incrAuthToken for them.
+  const now = Math.floor(Date.now() / 1000);
+  smStore.set("quick-dingtalk-mcp/users/victim", JSON.stringify({ access_token: "AT", refresh_token: "RT", expires_at: now + 7200, scope: "openid" }));
+  const incr = signIncrAuthToken({ userId: "victim", scopes: [], expiresInSec: 600 }, SSM_KEY);
+  // Register an attacker-controlled client.
+  const reg = await handler(ev("POST", "/register", {
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ redirect_uris: ["https://attacker.example.com/cb"], token_endpoint_auth_method: "client_secret_basic" }),
+  }), {} as any);
+  const attackerClient = JSON.parse((reg as any).body).client_id as string;
+
+  // Craft /authorize with BOTH ?t= and OAuth params.
+  fetchImpl = async (url) => {
+    if (url.includes("oauth2/userAccessToken")) return new Response(JSON.stringify({ accessToken: "AT2", refreshToken: "RT2", expiresIn: 7200, scope: "openid" }), { status: 200 });
+    if (url.includes("contact/users/me")) return new Response(JSON.stringify({ unionId: "victim" }), { status: 200 });
+    return new Response("nope", { status: 404 });
+  };
+  const challenge = createHash("sha256").update(randomBytes(48).toString("base64url")).digest("base64url");
+  await handler(ev("GET", "/authorize", {
+    qs: { t: incr, client_id: attackerClient, redirect_uri: "https://attacker.example.com/cb", response_type: "code", code_challenge: challenge, code_challenge_method: "S256", state: "x" },
+  }), {} as any);
+  const dingState = [...ddbStore.keys()].find((k) => !k.includes("#"))!;
+  // No OAuth session should have been created (mutual exclusion with ?t=).
+  assert.ok(![...ddbStore.keys()].some((k) => k.startsWith("sess#")), "?t= must not open an OAuth session");
+  // Callback must NOT 302 to the attacker with a code — falls through to HTML.
+  const cb = await handler(ev("GET", "/callback", { qs: { code: "dc", state: dingState } }), {} as any);
+  assert.equal((cb as any).statusCode, 200, "incremental-auth callback must not redirect a code to a client");
+  assert.ok(![...ddbStore.keys()].some((k) => k.startsWith("code#")), "no mcp_code minted on ?t= path");
+});
+
+test("review#1: past-ttl code is rejected in code even if DynamoDB hasn't swept it", async () => {
+  const verifier = randomBytes(48).toString("base64url");
+  const challenge = createHash("sha256").update(verifier).digest("base64url");
+  // Register a client so the code redemption gets past client_id checks.
+  const reg = await handler(ev("POST", "/register", {
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ redirect_uris: ["https://q.example.com/cb"], token_endpoint_auth_method: "client_secret_basic" }),
+  }), {} as any);
+  const clientId = JSON.parse((reg as any).body).client_id as string;
+  // Inject a code# record whose ttl is already in the past (DynamoDB hasn't
+  // physically deleted it yet). ddbGet must treat it as absent.
+  ddbStore.set("code#stale", {
+    payload: JSON.stringify({ userId: "u", clientId, redirectUri: "https://q.example.com/cb", codeChallenge: challenge, scope: "openid" }),
+    ttl: String(Math.floor(Date.now() / 1000) - 10),
+  });
+  const basic = Buffer.from(`${clientId}:x`).toString("base64");
+  const r = await handler(ev("POST", "/token", {
+    headers: { "content-type": "application/x-www-form-urlencoded", authorization: `Basic ${basic}` },
+    body: form({ grant_type: "authorization_code", code: "stale", redirect_uri: "https://q.example.com/cb", code_verifier: verifier }),
+  }), {} as any);
+  assert.equal((r as any).statusCode, 400);
+  assert.equal(JSON.parse((r as any).body).error, "invalid_grant");
 });

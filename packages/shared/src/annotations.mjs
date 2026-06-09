@@ -25,7 +25,12 @@ const READONLY_VERBS = [
 
 export function annotationsFor(command) {
   const verb = command.path[command.path.length - 1].toLowerCase();
+  // An irreversible verb is always destructive — checking it here guarantees
+  // IRREVERSIBLE_VERBS ⊆ destructive-annotated by construction, so the
+  // destructiveHint flag can never disagree with the confirmation prefix
+  // toolDescription() adds (the two are derived, not two hand-synced lists).
   if (
+    isIrreversible(command) ||
     DESTRUCTIVE_VERBS.some((v) => verb === v || verb.startsWith(v + "-"))
   ) {
     return { destructiveHint: true };
@@ -36,11 +41,12 @@ export function annotationsFor(command) {
   return {};
 }
 
-// Irreversible verbs — a narrower set than DESTRUCTIVE_VERBS. These can't be
-// undone (delete a record, recall a message, quit a group), so the AI host must
-// confirm with the user *before* calling. A plain destructiveHint:true flag is
-// too weak — most hosts don't surface it. Injecting the requirement into the
-// tool description itself is what actually reaches the model on every call.
+// Irreversible verbs — these can't be undone (delete a record, recall a message,
+// quit a group), so the AI host must confirm with the user *before* calling.
+// A plain destructiveHint:true flag is too weak — most hosts don't surface it —
+// so toolDescription() also injects the requirement into the tool description,
+// which is what actually reaches the model on every call. annotationsFor()
+// treats every verb here as destructive too, so the two signals stay in sync.
 const IRREVERSIBLE_VERBS = [
   "delete",
   "remove",

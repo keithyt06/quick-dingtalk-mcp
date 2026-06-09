@@ -23,6 +23,23 @@ test("annotationsFor: write verbs → destructiveHint", () => {
   });
 });
 
+test("annotationsFor: every irreversible verb also gets destructiveHint (signals can't disagree)", () => {
+  // remove/revoke/reject/quit/cancel/disband are irreversible but were NOT in
+  // DESTRUCTIVE_VERBS; annotationsFor must still mark them destructive so the
+  // hint never contradicts toolDescription()'s confirmation prefix.
+  for (const path of [
+    ["chat", "group", "members", "remove"],
+    ["oa", "approval", "revoke"],
+    ["oa", "approval", "reject"],
+    ["chat", "group", "quit"],
+    ["minutes", "upload", "cancel"],
+  ]) {
+    const c = cmd(path);
+    assert.equal(isIrreversible(c), true, `${path.join(".")} should be irreversible`);
+    assert.deepEqual(annotationsFor(c), { destructiveHint: true }, `${path.join(".")} must be destructiveHint`);
+  }
+});
+
 test("isIrreversible: delete/remove/revoke/reject/recall/quit/cancel", () => {
   assert.equal(isIrreversible(cmd(["todo", "task", "delete"])), true);
   assert.equal(isIrreversible(cmd(["chat", "group", "members", "remove"])), true);
