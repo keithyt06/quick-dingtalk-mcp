@@ -134,22 +134,26 @@ function buildAuthorizeUrl(scopes, incrAuthToken) {
 }
 
 // --- main dispatch ---
-async function dispatchToolCall(name, args, env) {
+// `onSpawn` (optional) receives the spawned dws ChildProcess so the request
+// that owns it can abort it. It must be per-request: a module-level "last
+// process" handle would let one request's close event kill ANOTHER concurrent
+// request's dws (req 'close' also fires after every NORMAL completion).
+async function dispatchToolCall(name, args, env, onSpawn) {
   if (name === "dingtalk_discover") {
     const results = searchCatalog(catalog, args, { tier1: tier1.tools });
     return { content: [{ type: "text", text: JSON.stringify(results, null, 2) }] };
   }
   if (name === "dingtalk_invoke") {
     if (!args.tool_name) throw new InputError("tool_name 必填");
-    return await dispatchToolCall(args.tool_name, args.args || {}, env);
+    return await dispatchToolCall(args.tool_name, args.args || {}, env, onSpawn);
   }
   const found = findCommandByToolName(name);
   if (!found) throw new InputError(`未知工具: ${name}`);
   const cliArgs = toCliArgs(found.cmd, args);
-  return await runDws(cliArgs, env);
+  return await runDws(cliArgs, env, onSpawn);
 }
 
-function runDws(cliArgs, env) {
+function runDws(cliArgs, env, onSpawn) {
   return new Promise((resolve, reject) => {
     let stdout = "", stderr = "";
     const proc = execFile(DWS_BIN, cliArgs, {
@@ -172,8 +176,7 @@ function runDws(cliArgs, env) {
       }
     });
     proc.on("error", reject);
-    // expose for caller-side abort
-    runDws.lastProc = proc;
+    if (onSpawn) onSpawn(proc);
   });
 }
 
@@ -265,7 +268,16 @@ async function handleMcpRequest(req, res) {
   await sem.acquire();
   activeRequests++;
   let aborted = false;
-  req.on("close", () => { aborted = true; if (runDws.lastProc) runDws.lastProc.kill("SIGTERM"); });
+  // Track THIS request's in-flight dws process so a client disconnect kills
+  // only it. Listen on `res` close and require the response to be unfinished:
+  // `req` 'close' also fires after a fully-consumed body / normal completion
+  // (Node ≥16), which with a shared handle used to kill other requests' dws.
+  let currentProc = null;
+  res.on("close", () => {
+    if (res.writableFinished) return; // normal completion, not an abort
+    aborted = true;
+    if (currentProc) currentProc.kill("SIGTERM");
+  });
 
   res.statusCode = 200;
   res.setHeader("Content-Type", "text/event-stream");
@@ -317,9 +329,11 @@ async function handleMcpRequest(req, res) {
           const { name, arguments: args = {} } = rpc.params || {};
           let result;
           try {
-            result = await dispatchToolCall(name, args, env);
+            result = await dispatchToolCall(name, args, env, p => { currentProc = p; });
           } catch (e) {
             result = errorResult(e, incrAuthToken);
+          } finally {
+            currentProc = null;
           }
           response = { jsonrpc: "2.0", id: rpc.id, result };
         } else {
@@ -330,6 +344,12 @@ async function handleMcpRequest(req, res) {
       }
       writeSSE(res, response);
     }
+  } catch (e) {
+    // Provisioning (or any per-request setup) failure must NOT escape: an
+    // unhandled rejection here kills the whole process and every other user's
+    // in-flight request. Report it as a JSON-RPC error on the open SSE stream.
+    console.error(`request failed: ${e.message}`);
+    writeSSE(res, { jsonrpc: "2.0", id: null, error: { code: -32000, message: `server error: ${e.message}` } });
   } finally {
     res.end();
     activeRequests--;

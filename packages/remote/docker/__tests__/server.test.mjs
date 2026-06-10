@@ -85,6 +85,93 @@ test("missing X-User-Id returns 401", { timeout: 5_000 }, async () => {
   assert.equal(r.status, 401);
 });
 
+// --- regression: per-request failure isolation + abort scoping ---
+
+function spawnServer(envOverrides, port2) {
+  const p = spawn("node", [SERVER], {
+    env: {
+      ...process.env,
+      PORT: String(port2),
+      DWS_BIN: fakeDws,
+      DWS_CONFIG_DIR_BASE: tmpRoot,
+      INJECT_STRATEGY: "d2",
+      OAUTH_BASE_URL: "https://auth.example.com",
+      ...envOverrides,
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  const ready = new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error("server start timeout")), 5000);
+    p.stderr.on("data", d => {
+      if (String(d).includes("listening on")) { clearTimeout(t); resolve(); }
+    });
+  });
+  return { proc: p, ready };
+}
+
+const callBody = (id, name, args = {}) =>
+  JSON.stringify({ jsonrpc: "2.0", id, method: "tools/call", params: { name, arguments: args } }) + "\n";
+const userHeaders = {
+  "X-User-Id": "test-user",
+  "X-User-Access-Token": "fake-token",
+  "Content-Type": "application/json",
+};
+
+test("provision failure must NOT crash the server (other users unaffected)", { timeout: 10_000 }, async () => {
+  const port2 = port + 1;
+  // INJECT_STRATEGY=d1 is a stub that throws — simulates any provisioning error.
+  const { proc: p, ready } = spawnServer({ INJECT_STRATEGY: "d1" }, port2);
+  try {
+    await ready;
+    const r = await fetch(`http://127.0.0.1:${port2}/`, {
+      method: "POST", headers: userHeaders,
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }) + "\n",
+    });
+    const text = await r.text();
+    assert.match(text, /server error/, "client should get a JSON-RPC error, not an empty stream");
+    // The process must still be alive and serving.
+    const ping = await fetch(`http://127.0.0.1:${port2}/ping`);
+    assert.equal(ping.status, 200, "server must survive a provisioning failure");
+  } finally {
+    p.kill("SIGKILL");
+    await new Promise(r => p.on("close", r));
+  }
+});
+
+test("aborting request A must not kill request B's in-flight dws (per-request abort scoping)", { timeout: 15_000 }, async () => {
+  const port2 = port + 2;
+  // Fake dws: `auth login` (provisioning) is instant; tool calls sleep 1.5s.
+  const slowDws = join(tmpRoot, "dws-slow.sh");
+  await writeFile(slowDws, `#!/usr/bin/env bash\nif [[ "$1" == "auth" ]]; then exit 0; fi\nsleep 1.5\necho "SLOW-OK"\nexit 0\n`);
+  await chmod(slowDws, 0o755);
+  const { proc: p, ready } = spawnServer({ DWS_BIN: slowDws }, port2);
+  try {
+    await ready;
+    // Request A: slow tools/call; will be aborted mid-flight.
+    const ctrl = new AbortController();
+    const a = fetch(`http://127.0.0.1:${port2}/`, {
+      method: "POST", headers: userHeaders, signal: ctrl.signal,
+      body: callBody(1, "dingtalk_contact_user_get_self"),
+    }).then(r => r.text()).catch(() => "(aborted)");
+    await new Promise(r => setTimeout(r, 300));
+    // Request B: starts AFTER A, so a shared "last spawned process" handle now
+    // points at B's dws. With the old module-level lastProc, aborting A killed
+    // B's process. With per-request scoping, B must complete normally.
+    const b = fetch(`http://127.0.0.1:${port2}/`, {
+      method: "POST", headers: { ...userHeaders, "X-User-Id": "other-user" },
+      body: callBody(2, "dingtalk_contact_user_get_self"),
+    }).then(r => r.text());
+    await new Promise(r => setTimeout(r, 300)); // let B spawn its dws
+    ctrl.abort(); // A's connection drops → A's close handler fires
+    const bText = await b;
+    assert.match(bText, /SLOW-OK/, `request B's dws was killed by request A's abort: ${bText.slice(0, 300)}`);
+    await a;
+  } finally {
+    p.kill("SIGKILL");
+    await new Promise(r => p.on("close", r));
+  }
+});
+
 test.after(async () => {
   if (proc) {
     proc.kill("SIGTERM");
