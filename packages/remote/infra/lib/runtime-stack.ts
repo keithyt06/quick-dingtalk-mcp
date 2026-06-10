@@ -54,7 +54,10 @@ export class RuntimeStack extends Stack {
     }));
     runtimeRole.addToPolicy(new iam.PolicyStatement({
       actions: ["logs:CreateLogStream", "logs:PutLogEvents", "logs:CreateLogGroup"],
-      resources: [`arn:aws:logs:${this.region}:${this.account}:log-group:/aws/bedrock-agentcore/qdm-remote*`],
+      // AgentCore writes container logs to /aws/bedrock-agentcore/runtimes/
+      // <runtime-id>-DEFAULT (observed live). The old `qdm-remote*` prefix
+      // matched nothing — runtime-id is platform-generated, not our name.
+      resources: [`arn:aws:logs:${this.region}:${this.account}:log-group:/aws/bedrock-agentcore/runtimes/*`],
     }));
     image.repository.grantPull(runtimeRole);
     this.runtimeRoleArn = runtimeRole.roleArn;

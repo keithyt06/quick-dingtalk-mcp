@@ -32,6 +32,25 @@ test("OAuthStack synthesizes with expected resource counts", () => {
   t.resourceCountIs("AWS::SNS::Topic", 1);
   t.resourceCountIs("AWS::CloudWatch::Alarm", 10);
   t.resourceCountIs("AWS::CloudWatch::Dashboard", 1);
+  // review #10: open DCR endpoint must be throttled at the API GW stage.
+  t.hasResourceProperties("AWS::ApiGatewayV2::Stage", {
+    RouteSettings: {
+      "POST /register": { ThrottlingRateLimit: 1, ThrottlingBurstLimit: 10 },
+    },
+  });
+  // deploy.sh upserts client#quick by table name — the output must exist.
+  t.hasOutput("OAuthStateTableName", {});
+  // Alarm periods must come from config/alarm-thresholds.json (standard:
+  // refresh_failure_users period_seconds=1800, api_gw_5xx 60), not the CDK
+  // 300s default — `.with({ period })` was missing and the field was dead.
+  t.hasResourceProperties("AWS::CloudWatch::Alarm", {
+    AlarmName: "qdm-remote-RefreshFailureUsers",
+    Period: 1800,
+  });
+  t.hasResourceProperties("AWS::CloudWatch::Alarm", {
+    AlarmName: "qdm-remote-ApiGw5xxPersistent",
+    Period: 60,
+  });
 });
 
 test("OAuthStack with alarm webhook URL → 3 Lambdas", () => {

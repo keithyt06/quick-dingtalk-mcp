@@ -199,6 +199,17 @@ export class OAuthStack extends Stack {
       integration: new integrations.HttpLambdaIntegration("McpInt", this.mcpMiddleware),
     });
 
+    // Throttle the open DCR endpoint (review #10). RFC 7591 allows unauthenticated
+    // registration and MCP hosts rely on it, but each POST writes a ~400-day
+    // client record — without a cap anyone can flood the table. DCR is a
+    // once-per-host-setup call, so 1 rps steady / 10 burst is generous.
+    // NOTE: CfnStage.routeSettings is an untyped JSON pass-through — keys must
+    // be CloudFormation PascalCase (camelCase would synth as-is and be rejected).
+    const defaultStage = this.httpApi.defaultStage!.node.defaultChild as apigw.CfnStage;
+    defaultStage.routeSettings = {
+      "POST /register": { ThrottlingRateLimit: 1, ThrottlingBurstLimit: 10 },
+    };
+
     // --- CloudFront in front of API Gateway ---
     this.distribution = new cf.Distribution(this, "Distribution", {
       defaultBehavior: {
@@ -244,6 +255,9 @@ export class OAuthStack extends Stack {
     }
 
     new CfnOutput(this, "OAuthBaseUrl", { value: `https://${this.distribution.distributionDomainName}` });
+    // deploy.sh reads this to upsert the pre-registered `client#quick` record
+    // (Quick's User-authentication form needs a fixed Client ID and never runs DCR).
+    new CfnOutput(this, "OAuthStateTableName", { value: stateTable.tableName });
     new CfnOutput(this, "ApiId", { value: this.httpApi.apiId });
     new CfnOutput(this, "DistributionId", { value: this.distribution.distributionId });
     new CfnOutput(this, "TokenRefreshShimArn", { value: this.tokenRefreshShim.functionArn });
@@ -270,9 +284,9 @@ export class OAuthStack extends Stack {
     // CloudFormation rejects MathExpression with implicit IDs in some setups
     // (`Error in expression 'expr_1': Invalid syntax`). lark-mcp-on-agentcore
     // also uses metricErrors() — we follow the same simpler pattern.
-    const lambdaErrors = (fn: lambda.Function): cw.IMetric => fn.metricErrors();
+    const lambdaErrors = (fn: lambda.Function): cw.Metric => fn.metricErrors();
 
-    const alarmDefs: Array<{ id: string; metric: cw.IMetric; key: string; description: string }> = [
+    const alarmDefs: Array<{ id: string; metric: cw.Metric; key: string; description: string }> = [
       {
         id: "ApiGw5xxPersistent",
         metric: new cw.Metric({ namespace: "AWS/ApiGateway", metricName: "5XXError", statistic: "Sum" }),
@@ -340,7 +354,9 @@ export class OAuthStack extends Stack {
       const comparison = COMPARISON_MAP[cfg.comparison] || cw.ComparisonOperator.GREATER_THAN_THRESHOLD;
       const alarm = new cw.Alarm(this, `Alarm${def.id}`, {
         alarmName: `qdm-remote-${def.id}`,
-        metric: def.metric,
+        // Apply the preset's period_seconds — without `.with({ period })` every
+        // alarm silently used the CDK default 300s and the config field was dead.
+        metric: def.metric.with({ period: Duration.seconds(cfg.period_seconds) }),
         threshold: cfg.threshold,
         evaluationPeriods: cfg.evaluation_periods,
         comparisonOperator: comparison,
