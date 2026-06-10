@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="600" viewBox="0 0 900 600" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/>
+    </marker>
+    <style>
+      .box{rx:10;ry:10;stroke-width:1.5;}
+      .lbl{font-size:13px;font-weight:600;fill:#111827;}
+      .sub{font-size:10.5px;fill:#6b7280;}
+      .edge{stroke:#6b7280;stroke-width:1.6;fill:none;marker-end:url(#arr);}
+      .hdr{font-size:12px;font-weight:700;letter-spacing:.3px;}
+      .cap{font-size:10.5px;fill:#4b5563;}
+      .ttl{font-size:16px;font-weight:700;fill:#111827;}
+      .bar{rx:6;ry:6;}
+      .barlbl{font-size:11px;font-weight:600;}
+      .tick{font-size:10px;fill:#9ca3af;}
+    </style>
+  </defs>
+
+  <text x="30" y="34" class="ttl">Token 生命周期 — <tspan fill="#4338ca">三层时钟，只有一条真正决定你要不要重新授权</tspan></text>
+
+  <!-- ===== 第 1 层：客户端凭证 ===== -->
+  <rect x="20" y="54" width="860" height="170" rx="12" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="1.5"/>
+  <text x="40" y="76" class="hdr" fill="#16a34a">第 1 层 · 客户端手里的凭证（按接入方式二选一）</text>
+
+  <!-- Mode A bars -->
+  <text x="40" y="102" class="barlbl" fill="#111827">方式 A（OAuth 向导）</text>
+  <rect x="220" y="90" width="70" height="16" class="bar" fill="#86efac"/>
+  <text x="298" y="103" class="sub">access token <tspan font-weight="700">1 小时</tspan>，到点 Quick 自动换新</text>
+  <rect x="220" y="114" width="330" height="16" class="bar" fill="#4ade80"/>
+  <text x="558" y="127" class="sub">refresh token <tspan font-weight="700">90 天</tspan>，每次使用即轮换换新</text>
+  <text x="40" y="127" class="sub">（你无感，全自动）</text>
+
+  <!-- Mode B bar -->
+  <text x="40" y="160" class="barlbl" fill="#111827">方式 B（手动 Bearer）</text>
+  <rect x="220" y="148" width="560" height="16" class="bar" fill="#fcd34d"/>
+  <text x="788" y="161" class="sub">~13 个月硬上限</text>
+  <text x="40" y="182" class="sub">（粘贴一次）</text>
+  <text x="220" y="182" class="sub">Bearer 本体长寿命——但<tspan font-weight="700">真正生效与否由第 2 层活跃窗口决定</tspan>，不靠这条硬上限</text>
+
+  <text x="40" y="210" class="cap">两种方式拿到的凭证最终都解析到同一个 userId，进入同一条判定链。</text>
+
+  <!-- ===== 第 2 层：90 天活跃窗口 ===== -->
+  <rect x="20" y="238" width="860" height="150" rx="12" fill="#eef2ff" stroke="#a5b4fc" stroke-width="1.5"/>
+  <text x="40" y="260" class="hdr" fill="#4338ca">第 2 层 · 后端 90 天活跃窗口 —— 唯一需要你关心的时钟</text>
+
+  <rect x="40" y="276" width="250" height="64" class="box" fill="#ffffff" stroke="#c7d2fe"/>
+  <text x="165" y="300" text-anchor="middle" class="lbl">每次调用刷新 last_active</text>
+  <text x="165" y="318" text-anchor="middle" class="sub">网关记录「你最后一次用是什么时候」</text>
+
+  <rect x="330" y="276" width="250" height="64" class="box" fill="#ffffff" stroke="#c7d2fe"/>
+  <text x="455" y="300" text-anchor="middle" class="lbl">90 天内用过 → 放行</text>
+  <text x="455" y="318" text-anchor="middle" class="sub">窗口随使用滚动，正常使用永不过期</text>
+
+  <rect x="620" y="276" width="250" height="64" class="box" fill="#fff7ed" stroke="#fdba74"/>
+  <text x="745" y="300" text-anchor="middle" class="lbl" fill="#9a3412">连续 90 天没用 → 401</text>
+  <text x="745" y="318" text-anchor="middle" class="sub">重新打开 /authorize 授权一次即恢复</text>
+
+  <path class="edge" d="M292,308 L328,308"/>
+  <path class="edge" d="M582,308 L618,308"/>
+  <text x="40" y="370" class="cap">统一口径：<tspan font-weight="700">在用就一直有效；连续 90 天完全没用过，才需要重新授权一次。</tspan>方式 A / B 都适用。</text>
+
+  <!-- ===== 第 3 层：钉钉侧 ===== -->
+  <rect x="20" y="402" width="860" height="150" rx="12" fill="#fffbeb" stroke="#fde68a" stroke-width="1.5"/>
+  <text x="40" y="424" class="hdr" fill="#d97706">第 3 层 · 钉钉侧 token —— 全由后端代管，用户永远不接触</text>
+
+  <rect x="40" y="440" width="250" height="64" class="box" fill="#ffffff" stroke="#fcd34d"/>
+  <text x="165" y="464" text-anchor="middle" class="lbl">钉钉 access_token</text>
+  <text x="165" y="482" text-anchor="middle" class="sub">~2 小时有效，存 Secrets Manager</text>
+
+  <rect x="330" y="440" width="250" height="64" class="box" fill="#ffffff" stroke="#fcd34d"/>
+  <text x="455" y="464" text-anchor="middle" class="lbl">EventBridge 每 30 分钟巡检</text>
+  <text x="455" y="482" text-anchor="middle" class="sub">剩余 &lt; 60 分钟即自动续期</text>
+
+  <rect x="620" y="440" width="250" height="64" class="box" fill="#ffffff" stroke="#fcd34d"/>
+  <text x="745" y="464" text-anchor="middle" class="lbl">钉钉 refresh_token</text>
+  <text x="745" y="482" text-anchor="middle" class="sub">续期同时滚动换新，长期保活</text>
+
+  <path class="edge" d="M292,472 L328,472"/>
+  <path class="edge" d="M582,472 L618,472"/>
+  <text x="40" y="534" class="cap">若钉钉侧续期失败（如管理员撤销授权），该用户标记 needs_reauth，下次调用提示重新授权——与第 2 层走同一个 /authorize 出口。</text>
+
+  <text x="40" y="582" class="cap" font-weight="700" fill="#374151">一句话总结：第 1、3 层全自动；只有「连续 90 天不用」（第 2 层）才需要人重新点一次授权。</text>
+</svg>

@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="440" viewBox="0 0 900 440" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/>
+    </marker>
+    <style>
+      .box{rx:10;ry:10;stroke-width:1.5;}
+      .lbl{font-size:13px;font-weight:600;fill:#111827;}
+      .sub{font-size:10px;fill:#6b7280;}
+      .edge{stroke:#6b7280;stroke-width:1.6;fill:none;marker-end:url(#arr);}
+      .edgelbl{font-size:10px;fill:#6b7280;}
+      .errline{stroke:#f87171;stroke-width:1.2;stroke-dasharray:3 3;fill:none;}
+      .err{font-size:10.5px;fill:#b91c1c;font-weight:700;}
+      .errsub{font-size:10px;fill:#7f1d1d;}
+      .cap{font-size:10.5px;fill:#4b5563;}
+      .ttl{font-size:16px;font-weight:700;fill:#111827;}
+    </style>
+  </defs>
+
+  <text x="30" y="34" class="ttl">Remote 请求链路 — <tspan fill="#b91c1c">每个错误码出在哪一跳</tspan></text>
+
+  <!-- ===== 链路主干 ===== -->
+  <rect x="20" y="58" width="860" height="140" rx="12" fill="#eef2ff" stroke="#a5b4fc" stroke-width="1.5"/>
+  <text x="40" y="80" class="lbl" fill="#4338ca" font-size="12">一次工具调用经过的 5 跳</text>
+
+  <rect x="40"  y="96" width="140" height="72" class="box" fill="#ffffff" stroke="#c7d2fe"/>
+  <text x="110" y="122" text-anchor="middle" class="lbl">Quick 客户端</text>
+  <text x="110" y="140" text-anchor="middle" class="sub">Bearer + POST /mcp</text>
+
+  <rect x="212" y="96" width="150" height="72" class="box" fill="#ffffff" stroke="#c7d2fe"/>
+  <text x="287" y="116" text-anchor="middle" class="lbl">CloudFront</text>
+  <text x="287" y="134" text-anchor="middle" class="sub">+ API Gateway</text>
+  <text x="287" y="150" text-anchor="middle" class="sub">（可选 WAF）</text>
+
+  <rect x="394" y="96" width="160" height="72" class="box" fill="#ffffff" stroke="#c7d2fe"/>
+  <text x="474" y="114" text-anchor="middle" class="lbl">mcp-middleware</text>
+  <text x="474" y="132" text-anchor="middle" class="sub">验 HMAC → 查活跃窗口</text>
+  <text x="474" y="148" text-anchor="middle" class="sub">→ 取钉钉 token → SigV4 签名</text>
+
+  <rect x="586" y="96" width="150" height="72" class="box" fill="#ffffff" stroke="#c7d2fe"/>
+  <text x="661" y="114" text-anchor="middle" class="lbl">AgentCore 容器</text>
+  <text x="661" y="132" text-anchor="middle" class="sub">8080 端口 · 头透传</text>
+  <text x="661" y="148" text-anchor="middle" class="sub">per-user 注入 → dws</text>
+
+  <rect x="768" y="96" width="110" height="72" class="box" fill="#e0e7ff" stroke="#a5b4fc"/>
+  <text x="823" y="126" text-anchor="middle" class="lbl" fill="#3730a3">钉钉</text>
+  <text x="823" y="144" text-anchor="middle" class="sub">mcp-gw</text>
+
+  <path class="edge" d="M180,132 L210,132"/>
+  <path class="edge" d="M362,132 L392,132"/>
+  <path class="edge" d="M554,132 L584,132"/>
+  <text x="569" y="125" text-anchor="middle" class="edgelbl">SigV4</text>
+  <path class="edge" d="M736,132 L766,132"/>
+
+  <!-- ===== 故障点引线 ===== -->
+  <path class="errline" d="M287,168 L287,228"/>
+  <path class="errline" d="M444,168 L444,228"/>
+  <path class="errline" d="M504,168 L504,298"/>
+  <path class="errline" d="M630,168 L630,228"/>
+  <path class="errline" d="M692,168 L692,298"/>
+  <path class="errline" d="M823,168 L823,298"/>
+
+  <!-- 错误卡片行 1 -->
+  <rect x="192" y="228" width="190" height="58" rx="8" fill="#fef2f2" stroke="#fecaca" stroke-width="1.2"/>
+  <text x="204" y="246" class="err">域名打不开 / 连接被终止</text>
+  <text x="204" y="262" class="errsub">URL 域名打错字母 →</text>
+  <text x="204" y="276" class="errsub">逐字核对三栏域名，复制粘贴</text>
+
+  <rect x="394" y="228" width="190" height="58" rx="8" fill="#fef2f2" stroke="#fecaca" stroke-width="1.2"/>
+  <text x="406" y="246" class="err">401 unauthorized</text>
+  <text x="406" y="262" class="errsub">token 拼错 / 闲置超 90 天 /</text>
+  <text x="406" y="276" class="errsub">被 revoke → 重新走 /authorize</text>
+
+  <rect x="586" y="228" width="190" height="58" rx="8" fill="#fef2f2" stroke="#fecaca" stroke-width="1.2"/>
+  <text x="598" y="246" class="err">502 from runtime</text>
+  <text x="598" y="262" class="errsub">容器没监听 8080 → 管理员查</text>
+  <text x="598" y="276" class="errsub">Runtime env PORT=8080</text>
+
+  <!-- 错误卡片行 2 -->
+  <rect x="394" y="298" width="190" height="58" rx="8" fill="#fef2f2" stroke="#fecaca" stroke-width="1.2"/>
+  <text x="406" y="316" class="err">503 Retry-After: 30</text>
+  <text x="406" y="332" class="errsub">钉钉 token 临过期未刷 →</text>
+  <text x="406" y="346" class="errsub">等自动刷新或 ops.sh refresh</text>
+
+  <rect x="586" y="298" width="190" height="58" rx="8" fill="#fef2f2" stroke="#fecaca" stroke-width="1.2"/>
+  <text x="598" y="316" class="err">列工具 OK 但调用 401</text>
+  <text x="598" y="332" class="errsub">AgentCore 未透传自定义头 →</text>
+  <text x="598" y="346" class="errsub">查 requestHeaderAllowlist</text>
+
+  <rect x="192" y="298" width="190" height="58" rx="8" fill="#fef2f2" stroke="#fecaca" stroke-width="1.2"/>
+  <text x="204" y="316" class="err">403 SignatureDoesNotMatch</text>
+  <text x="204" y="332" class="errsub">middleware→AgentCore 签名错</text>
+  <text x="204" y="346" class="errsub">→ 后端 bug，管理员查 sigv4.ts</text>
+
+  <rect x="780" y="298" width="100" height="58" rx="8" fill="#fef2f2" stroke="#fecaca" stroke-width="1.2"/>
+  <text x="792" y="316" class="err">没收到消息</text>
+  <text x="792" y="332" class="errsub">钉钉账号没有</text>
+  <text x="792" y="346" class="errsub">该群权限</text>
+
+  <text x="40" y="392" class="cap">排查顺序建议从左到右：先确认 URL 域名（最常见），再看 401/503（token 状态），最后才是后端 403/502（找管理员）。</text>
+  <text x="40" y="410" class="cap">管理员三板斧：<tspan font-family="monospace">ops.sh status</tspan> → <tspan font-family="monospace">ops.sh logs mcp-middleware</tspan> → 容器日志 <tspan font-family="monospace">aws logs tail /aws/bedrock-agentcore/runtimes/&lt;runtime-id&gt;-DEFAULT</tspan>。</text>
+</svg>

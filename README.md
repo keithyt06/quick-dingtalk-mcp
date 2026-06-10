@@ -136,7 +136,7 @@ curl -fsSL https://raw.githubusercontent.com/keithyt06/quick-dingtalk-mcp/main/p
 - the **authorize URL** to hand to teammates
 - the **MCP endpoint** (`https://<domain>/mcp`) they paste into Amazon Quick Desktop
 
-> Prereqs: a DingTalk app (AppKey/AppSecret) with `<domain>/callback` registered as its redirect URL, AWS creds for `us-east-1`, Docker, and Node ≥ 22.6. See [docs/remote-operations.md](./docs/remote-operations.md).
+> Prereqs: a DingTalk app (AppKey/AppSecret) with `<domain>/callback` registered as its redirect URL, AWS creds for `us-east-1`, Docker, and Node ≥ 22.6. Chicken-and-egg (you don't know the domain before deploying)? Run `deploy.sh --only-oauth` first — it deploys just the gateway, prints the CloudFront domain to register with DingTalk, then re-run the full deploy. Day-2 operations → [docs/remote-operations.md](./docs/remote-operations.md).
 
 ### Teammate: connect your MCP client
 
@@ -207,6 +207,8 @@ Want the assistant to *be you*? Use this. Want clearly-labelled automation? Use 
 ---
 
 ## Docs
+
+Full index (by audience): **[docs/README.md](./docs/README.md)**
 
 - **Local**: [setup](./packages/local/docs/setup.md) · [identity verification](./packages/local/docs/verification.md)
 - **Remote**: [first-time setup · OAuth wizard, recommended (中文)](./docs/remote-新人首配-oauth.md) · [connect help · manual (中文)](./docs/remote-连接帮助.md) · [Quick Desktop onboarding](./docs/remote-quick-desktop.md) · [security](./docs/remote-security.md) · [operations](./docs/remote-operations.md) · [observability](./docs/remote-observability.md) · [FAQ](./docs/remote-faq.md) · [cost](./docs/remote-cost.md)

@@ -1,94 +1,50 @@
 # Remote 端可观测性
 
-> CloudWatch Dashboard、10 个 Alarm、SNS → 钉钉群告警链路、常用 Logs Insights 查询、错误归因 playbook。
+> 面向**运维 Remote 栈的管理员**。CloudWatch Dashboard、10 个 Alarm、SNS → 钉钉群告警链路、常用 Logs Insights 查询、错误归因 playbook。
 
-## Dashboard 5 板块逐项
+## Dashboard：`qdm-remote`（5 板块 / 10 图）
 
-Dashboard 名 `QdmRemote-Main`，部署后看 [Console 链接](https://console.aws.amazon.com/cloudwatch/home?region=us-east-1#dashboards:name=QdmRemote-Main)。
+Dashboard 名 `qdm-remote`，部署后在 CloudWatch Console（us-east-1）→ Dashboards 打开。
 
-### 板块 1 入口流量
-
-| 图表 | 指标 | 备注 |
+| 板块 | 图 | 指标 |
 |---|---|---|
-| CloudFront Requests | `AWS/CloudFront.Requests`（global） | 5min sum |
-| CloudFront 4xx/5xx | `4xxErrorRate`, `5xxErrorRate` | % stacked |
-| API Gateway Count | `AWS/ApiGateway.Count` per route | `/mcp` `/authorize` `/callback` 分线 |
-| WAF BlockedRequests | `AWS/WAFV2.BlockedRequests` | 不开 WAF 显 No Data |
+| 1 入口流量 | API GW 4xx/5xx | `AWS/ApiGateway.4XXError` / `5XXError`（Sum） |
+| | API GW Latency | `AWS/ApiGateway.Latency` p50 / p99 |
+| 2 Lambda 健康 | mcp-middleware errors / invocations | `AWS/Lambda.Errors` + `Invocations` |
+| | mcp-middleware duration p99 | `AWS/Lambda.Duration` p99（冷启动会拉高） |
+| 3 OAuth 流程 | token-refresh-shim errors / invocations | `AWS/Lambda.Errors` + `Invocations` |
+| | Refresh failure users | `QuickDingtalkMcp/Remote.RefreshFailureUsers`（Sum） |
+| 4 Runtime 容器 | AgentCore invocation count / errors | `AWS/BedrockAgentCore.InvocationCount` / `InvocationErrors` |
+| | Container semaphore depth + busy | `QuickDingtalkMcp/Runtime.QueueDepth` / `ServerBusy` |
+| 5 业务错误 | PAT triggers | `QuickDingtalkMcp/Runtime.PATTrigger`（权限不足触发增量授权的次数） |
+| | dws non-zero exits | `QuickDingtalkMcp/Runtime.DwsNonZeroExit` |
 
-### 板块 2 Lambda 健康
+> **现状说明**：`QuickDingtalkMcp/Runtime.*` 四个容器侧指标已在 Dashboard / Alarm 中引用，但当前容器代码尚未打点，这些图显示 No Data（对应 alarm 设了 `TreatMissingData: NOT_BREACHING`，不会误报）。`QuickDingtalkMcp/Remote.RefreshFailureUsers` 由 token-refresh-shim 用 EMF 打点，是真实有数的。
 
-| 图表 | 指标 | 备注 |
-|---|---|---|
-| Invocations | `AWS/Lambda.Invocations` per function | 三 Lambda 叠加 |
-| Errors | `AWS/Lambda.Errors` | 阈值线 1/min |
-| Duration p95 / p99 | `Duration` 统计 p95/p99 | 冷启动会拉高 |
-| Throttles | `Throttles` | 应该恒为 0 |
-| ConcurrentExecutions | reserved concurrency 用量 | mcp-middleware 设了 reserved=50 |
+## 10 个 Alarm（三档 preset）
 
-### 板块 3 OAuth 流程
+Preset 用 deploy 上下文 `--context alarmPreset=relaxed|standard|strict` 切，默认 `standard`。阈值定义在 `config/alarm-thresholds.json`，alarm 名统一 `qdm-remote-<Id>`，全部动作为发 SNS（→ 钉钉群卡片）。
 
-| 图表 | 指标 | 备注 |
-|---|---|---|
-| Authorize 成功率 | `QuickDingtalkMcp/OAuth.AuthorizeOk` / `AuthorizeAttempt` | 自定义 metric |
-| Callback 失败原因 | `CallbackFailReason` dimension `reason=invalid_state\|expired\|ding_error` | 切片 |
-| Token 刷新成功率 | `RefreshOk` / `RefreshAttempt` | EventBridge 30min cron |
-| 有效用户数 | `QuickDingtalkMcp/Users.Active24h` | 24h 内有调用的 uid 唯一计数 |
+下表为 `standard` 档（格式：阈值 / 评估期数 × 周期）：
 
-### 板块 4 Runtime 容器
+| # | Alarm | Metric | standard | 含义 |
+|---|---|---|---|---|
+| 1 | ApiGw5xxPersistent | `AWS/ApiGateway.5XXError` Sum | > 5 / 3×60s | 入口持续 5xx |
+| 2 | MiddlewareErrorRate | mcp-middleware `Errors` | > 0.05 / 3×60s | 网关 Lambda 报错 |
+| 3 | LambdaThrottle | mcp-middleware `Throttles` | ≥ 1 / 1×60s | 任何限流事件 |
+| 4 | RefreshFailureUsers | `QuickDingtalkMcp/Remote.RefreshFailureUsers` | ≥ 1 / 1×30min | 定时刷新失败的用户数 |
+| 5 | RuntimeInvocationFailure | `AWS/BedrockAgentCore.InvocationErrors` | > 3 / 3×60s | AgentCore 调用失败 |
+| 6 | Container5xx | `QuickDingtalkMcp/Runtime.Container5xx` | > 5 / 3×60s | 容器 5xx（待打点） |
+| 7 | ServerBusyPersistent | `QuickDingtalkMcp/Runtime.ServerBusy` | > 10 / 5×60s | 信号量队列持续打满（待打点） |
+| 8 | SmThrottle | `AWS/SecretsManager.ThrottledRequests` | ≥ 1 / 1×60s | SM 限流 |
+| 9 | DdbThrottle | `AWS/DynamoDB.ThrottledRequests` | ≥ 1 / 1×60s | DDB 限流 |
+| 10 | OAuthCallbackFailureRate | token-refresh-shim `Errors` | > 0.2 / 3×300s | OAuth 回调失败 |
 
-| 图表 | 指标 | 备注 |
-|---|---|---|
-| InvokeAgentRuntime Count | `AWS/Bedrock.InvocationCount` | filter agent name |
-| InvokeAgentRuntime Latency | p50/p95/p99 | p95 期望 < 800ms |
-| Container CPU/Mem | `AWS/Bedrock-AgentCore.CpuUtilization`, `MemoryUtilization` | reserved 1vCPU/2GB |
-| Cold Start | `QuickDingtalkMcp/Runtime.ColdStart` | 容器内打点 |
-| Semaphore Queue Depth | `QuickDingtalkMcp/Runtime.SemaphoreDepth` | 长期 > 5 = 应扩 |
+`relaxed`（开发期，阈值约 2-4 倍宽）与 `strict`（大用户量，阈值压到 1 且窗口更短）的具体数值见 `config/alarm-thresholds.json`。
 
-### 板块 5 业务错误
+## SNS → 钉钉群告警卡片
 
-| 图表 | 指标 | 备注 |
-|---|---|---|
-| dws execFile 失败 | `QuickDingtalkMcp/Runtime.DwsError` dimension `code` | top N error code |
-| 工具分布 | `QuickDingtalkMcp/Tool.InvokeCount` dimension `tool` | top 10 |
-| 钉钉 API 4xx/5xx | dws 内部抛出的 ding error，按 errcode 切片 | 例如 errcode=88（access_token 过期） |
-| permission_required | `QuickDingtalkMcp/Auth.PermissionRequired` | 多 = scope 配错 |
-
-## 10 Alarms 详细表（3 preset 阈值）
-
-Preset 用 deploy 上下文 `--context alarmPreset=relaxed|standard|strict` 切，默认 `standard`。
-
-| # | Alarm | Metric | relaxed | standard | strict | Action |
-|---|---|---|---|---|---|---|
-| 1 | Lambda errors spike | `AWS/Lambda.Errors` per function, 5min sum | > 10 | > 5 | > 1 | SNS |
-| 2 | Lambda p99 latency | `Duration` p99, 5min | > 5000ms | > 3000ms | > 1500ms | SNS |
-| 3 | API GW 5xx rate | `5XXError` / `Count`, 5min | > 5% | > 2% | > 0.5% | SNS |
-| 4 | API GW 4xx rate | `4XXError` / `Count`, 15min | > 30% | > 15% | > 5% | SNS |
-| 5 | OAuth callback fail | `CallbackFailReason` 5min sum | > 20 | > 10 | > 3 | SNS |
-| 6 | Token refresh fail | 1 - `RefreshOk/RefreshAttempt`, 30min | > 50% | > 20% | > 5% | SNS + page |
-| 7 | Runtime invoke errors | `AWS/Bedrock-AgentCore.InvocationErrors` | > 10 | > 5 | > 1 | SNS |
-| 8 | Container cold start | `Runtime.ColdStart` p95, 5min | > 5000ms | > 3000ms | > 2000ms | SNS |
-| 9 | dws execFile err rate | `DwsError` / `Tool.InvokeCount` 5min | > 5% | > 2% | > 0.5% | SNS |
-| 10 | WAF blocked spike | `BlockedRequests` 5min | > 1000 | > 500 | > 100 | SNS |
-
-第 6 号还会写 PagerDuty webhook（如果配了 `PAGERDUTY_INTEGRATION_KEY` SSM）。
-
-## SNS → 钉钉群卡片样例
-
-`alarm-webhook` Lambda 订阅 SNS topic，把 `CloudWatchAlarm` JSON 转成钉钉 markdown：
-
-```json
-{
-  "msgtype": "markdown",
-  "markdown": {
-    "title": "[ALARM] QdmRemote: Lambda errors spike",
-    "text": "## QdmRemote: Lambda errors spike\n\n- Function: `QdmRemoteOAuth-mcp-middleware`\n- Region: `us-east-1`\n- Threshold: `> 5 errors / 5min` (preset=standard)\n- Current: `12`\n- State change: `OK → ALARM` at `2026-05-28T03:14:22Z`\n\n[Open Dashboard](https://console.aws.amazon.com/cloudwatch/home?region=us-east-1#dashboards:name=QdmRemote-Main)\n[Open Alarm](https://console.aws.amazon.com/cloudwatch/home?region=us-east-1#alarmsV2:alarm/QdmRemote-LambdaErrors-mcp-middleware)\n\n> Run `bash packages/remote/scripts/ops.sh logs mcp-middleware` to tail."
-  }
-}
-```
-
-OK 状态恢复也发一条，title 换 `[OK]`。
-
-钉钉群 webhook 在 SSM `/quick-dingtalk-mcp/alarm-webhook-url`（SecureString）。webhook 加签密钥放 `/quick-dingtalk-mcp/alarm-webhook-secret`，alarm-webhook Lambda 拼 `&timestamp=...&sign=...`。
+部署时通过 `alarmWebhookUrl` 上下文传入钉钉群机器人 webhook，`alarm-webhook` Lambda 订阅 SNS topic，把 CloudWatch Alarm JSON 转成钉钉 markdown 卡片，内容包括：alarm 名、状态（ALARM/OK）、指标、阈值、原因，以及 Dashboard 链接。未配 webhook 时该 Lambda 不部署/直接跳过，告警仍可在 CloudWatch Console 查看。
 
 ## ops.sh logs 用法
 
@@ -98,123 +54,75 @@ bash packages/remote/scripts/ops.sh logs mcp-middleware
 bash packages/remote/scripts/ops.sh logs alarm-webhook
 ```
 
-底层是 `aws logs tail /aws/lambda/QdmRemoteOAuth-<name>* --follow --region us-east-1`，加 `--since 1h` 回溯。
+底层是 `aws logs tail "/aws/lambda/QdmRemoteOAuth-<name>*" --follow --region us-east-1`。
 
-容器日志单独：
+容器日志单独（runtime-id 形如 `qdm_remote-XXXXXXXXXX`）：
 
 ```bash
-aws logs tail /aws/agentcore/runtime/quick-dingtalk-mcp --follow --region us-east-1
+aws logs tail /aws/bedrock-agentcore/runtimes/<runtime-id>-DEFAULT --follow --region us-east-1
 ```
 
-## CloudWatch Logs Insights 5 条常用查询
+## CloudWatch Logs Insights 常用查询
 
-1. **24h 错误 top 10 工具**：
+Lambda 日志是结构化 JSON（`level` / `msg` / `ts` + 上下文字段），以下查询对 `/aws/lambda/QdmRemoteOAuth-*` 日志组直接可用。容器日志目前是纯文本，只能按字符串过滤。
+
+1. **24h 错误按消息聚类**（先看错在哪类）：
 
 ```sql
-fields @timestamp, tool, errorCode, userId
-| filter @logStream like /runtime/ and errorCode != ""
-| stats count() as cnt by tool, errorCode
+fields @timestamp, msg, err
+| filter level = "error"
+| stats count() as cnt by msg
 | sort cnt desc
-| limit 10
 ```
 
-2. **某用户最近 1h 全部调用**：
+2. **401 原因切片**（mcp-middleware）：
 
 ```sql
-fields @timestamp, tool, args_hash, status, durationMs
-| filter userId = "u_5f23a8b1c4"
+fields @timestamp, reason
+| filter msg = "unauthorized"
+| stats count() by reason
+```
+
+3. **定时刷新失败明细**（token-refresh-shim）：
+
+```sql
+fields @timestamp, userId, err
+| filter msg = "refresh failed"
 | sort @timestamp desc
-| limit 100
 ```
 
-3. **OAuth callback 失败原因切片**：
+4. **OAuth 发 token / 续期的量**（验证方式 A 用户在正常续期）：
 
 ```sql
-fields @timestamp, reason, dingErrcode
-| filter @logStream like /token-refresh-shim/ and msg = "callback_fail"
-| stats count() by reason, dingErrcode
+fields @timestamp, msg, userId, clientId
+| filter msg in ["token issued (authorization_code)", "token refreshed"]
+| stats count() by msg, bin(1h)
 ```
 
-4. **冷启动时长分布**：
+## 自定义 metric（EMF）
 
-```sql
-fields @timestamp, coldStartMs
-| filter event = "cold_start"
-| stats avg(coldStartMs), max(coldStartMs), pct(coldStartMs, 95) by bin(5m)
-```
+当前唯一有打点的自定义指标：
 
-5. **dws execFile 平均时长 by tool**：
+| Metric | 来源 | 触发 |
+|---|---|---|
+| `QuickDingtalkMcp/Remote.RefreshFailureUsers` | token-refresh-shim（EMF，嵌在日志里，零额外 PutMetricData 费用） | 每轮 EventBridge 刷新结束后上报失败用户数 |
 
-```sql
-fields tool, durationMs
-| filter event = "dws_invoke" and status = "ok"
-| stats avg(durationMs), pct(durationMs, 95), count() by tool
-| sort count desc
-```
-
-## 自定义 metric (`QuickDingtalkMcp` namespace)
-
-容器 + Lambda 用 EMF（CloudWatch Embedded Metric Format）打点，零额外 PutMetricData 费用。
-
-| Metric | 维度 | 来源 | 单位 |
-|---|---|---|---|
-| `Tool.InvokeCount` | `tool`, `userId` | container | Count |
-| `Tool.DurationMs` | `tool` | container | Milliseconds |
-| `Runtime.ColdStart` | — | container | Milliseconds |
-| `Runtime.SemaphoreDepth` | — | container | Count |
-| `Runtime.DwsError` | `code` | container | Count |
-| `OAuth.AuthorizeAttempt` | — | token-refresh-shim | Count |
-| `OAuth.AuthorizeOk` | — | token-refresh-shim | Count |
-| `OAuth.CallbackFailReason` | `reason` | token-refresh-shim | Count |
-| `OAuth.RefreshAttempt` | — | token-refresh-shim | Count |
-| `OAuth.RefreshOk` | — | token-refresh-shim | Count |
-| `Auth.PermissionRequired` | `scope` | mcp-middleware | Count |
-| `Users.Active24h` | — | scheduled cron in mcp-middleware | Count |
-
-EMF 例（容器内）：
-
-```json
-{
-  "_aws": {
-    "Timestamp": 1735689600000,
-    "CloudWatchMetrics": [{
-      "Namespace": "QuickDingtalkMcp",
-      "Dimensions": [["tool"]],
-      "Metrics": [{"Name": "Tool.DurationMs", "Unit": "Milliseconds"}]
-    }]
-  },
-  "tool": "im.send_to_chat",
-  "userId": "u_5f23a8b1c4",
-  "Tool.DurationMs": 432
-}
-```
+Dashboard / Alarm 中引用的 `QuickDingtalkMcp/Runtime.*`（Container5xx、ServerBusy、QueueDepth、PATTrigger、DwsNonZeroExit）为容器侧预留指标，**尚未打点**（见上文现状说明）。
 
 ## 错误归因 playbook
 
 ```
-告警来 → 看 Dashboard
-       → 哪个板块红？
-            ├─ 入口流量 4xx 高 → WAF 命中 / 用户 token 全过期 → 看板块 3 OAuth 失败
-            ├─ Lambda Errors 高 → ops.sh logs <fn> → 看 Insights query 1 / 3
-            ├─ Runtime 错 → 容器日志 → 看 dws code → bump-dws-version 或回滚镜像
-            ├─ 业务错 dws execFile 高 → 是不是某个工具 ding 端 5xx？看 Insights query 5
-            └─ Cold Start 高 → AgentCore reserved concurrency 不够 → 调 Runtime config
+告警来 → 看 Dashboard qdm-remote
+       → 哪个板块异常？
+            ├─ 板块 1 入口 5xx 高 → 看板块 2/3 哪个 Lambda 在报错
+            ├─ 板块 2 middleware 错误高 → ops.sh logs mcp-middleware → Insights 查询 1/2
+            ├─ 板块 3 RefreshFailureUsers ≥ 1 → Insights 查询 3 看哪个用户、什么错
+            ├─ 板块 4 AgentCore InvocationErrors → 容器日志 → 看 dws 报错 → 回滚镜像或升 dws
+            └─ 用户报 401/503 但 Dashboard 正常 → 多半是单用户 token 状态，走故障排查矩阵
 ```
 
-排查流程参考 [remote-quick-desktop.md 故障排查矩阵](./remote-quick-desktop.md#故障排查矩阵)。
+逐错误码排查见 [remote-quick-desktop.md 故障排查矩阵](./remote-quick-desktop.md#故障排查矩阵)。
 
 ## 成本影响
 
-可观测性本身的月成本（10 用户、每天 100 次调用估算）：
-
-| 项 | 量 | 月成本 |
-|---|---|---|
-| CloudWatch Logs 摄入 | ~2GB/月 | $1.0 |
-| CloudWatch Logs 存储（30 天） | ~2GB | $0.06 |
-| Custom metric (EMF) | 嵌在日志，0 额外 | $0 |
-| Dashboard | 1 个 | $3.0 |
-| Alarms | 10 个 | $1.0（$0.10 each） |
-| SNS publish | < 100/月 | < $0.01 |
-| **小计** | | **~$5.1/月** |
-
-放大到 1000 用户：日志 ~50GB → $25 + 存储 $1.5 + 上面合计约 $30。日志保留期建议生产 30 天、开发 7 天，见 [remote-cost.md](./remote-cost.md)。
+可观测性相关成本（日志摄入/存储、Dashboard、Alarm、SNS）的估算统一见 [remote-cost.md](./remote-cost.md)，量级参考：10 用户场景约 $2-5/月，大头是 CloudWatch Logs 摄入。

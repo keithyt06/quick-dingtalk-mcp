@@ -52,7 +52,7 @@
 
   <rect x="620" y="350" width="300" height="50" class="box"/>
   <text x="770" y="370" text-anchor="middle">AgentCore Runtime</text>
-  <text x="770" y="388" class="label" text-anchor="middle">docker/server.js (Streamable HTTP :8000)</text>
+  <text x="770" y="388" class="label" text-anchor="middle">docker/server.js (Streamable HTTP :8080)</text>
 
   <rect x="620" y="420" width="300" height="50" class="box"/>
   <text x="770" y="440" text-anchor="middle">dws CLI (per-user DWS_CONFIG_DIR)</text>

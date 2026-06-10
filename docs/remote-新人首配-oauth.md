@@ -50,6 +50,10 @@
 
 状态变成 **Connected ✅**，显示一批工具（约 38 个）就成功了。
 
+这背后发生了什么（不用记，出问题时方便对号入座）：
+
+![方式 A · OAuth 向导完整时序：Quick → /authorize → 钉钉同意 → /callback → 铸 code → /token → access+refresh，之后全自动续期](./assets/oauth-wizard-sequence.svg)
+
 ### 验证一下
 
 在 Quick 对话框输入：
@@ -113,7 +117,7 @@ A：OAuth 向导版授权后 token 自动回填、自动续期，省去复制粘
 
 > 🔧 **以下仅管理员相关，普通成员到此即可，无需继续阅读。**
 
-**为什么 Client ID 固定是 `quick`**：Amazon Quick 的「User authentication」表单强制要填 Client ID/Secret 且不跑动态注册（DCR），直接拿你填的 ID 打 `/authorize`，所以网关侧必须预注册一个固定客户端。部署新环境（或重建了 OAuthStateTable）后，管理员需一次性预注册 `client#quick` 并把 Quick 回调加进它的白名单，否则成员填 `quick` 会报 `unknown client_id`。具体步骤（写哪条 DynamoDB 记录、如何验证）见 [remote-quick-desktop.md 的「附录：为方式 A 预注册 `quick` 客户端」](./remote-quick-desktop.md#附录为方式-a-预注册-quick-客户端每套环境一次性)。
+**为什么 Client ID 固定是 `quick`**：Amazon Quick 的「User authentication」表单强制要填 Client ID/Secret 且不跑动态注册（DCR），直接拿你填的 ID 打 `/authorize`，所以网关侧必须预注册一个固定客户端。`deploy.sh` 每次部署会自动注册/刷新 `client#quick`；成员报 `unknown client_id` 或 `redirect_uri not in registered allowlist` 时，管理员看 [remote-quick-desktop.md 的「附录：方式 A 的 `quick` 客户端预注册」](./remote-quick-desktop.md#附录方式-a-的-quick-客户端预注册deploysh-已自动化)（如何加回调白名单、如何验证）。
 
 ---
 

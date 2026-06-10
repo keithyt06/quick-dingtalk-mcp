@@ -101,7 +101,7 @@ https://<域名>/authorize
 2. 用**你自己的钉钉账号**确认授权（同意 scope `openid corpid`）。
 3. 钉钉跳回，页面显示一段 `Bearer ...` token——**复制它**（这就是你的专属 MCP token，长期有效——只要在用就不过期）。
 
-> 底层：`token-refresh-shim` Lambda 生成 `state`（写 DynamoDB，TTL 10 分钟）重定向到钉钉；钉钉回调后 Lambda 用授权码换 `access_token`+`refresh_token` 存进 Secrets Manager（KMS 加密），再用 SSM 里的 HMAC 主密钥派生出你的 MCP token（HMAC-SHA256，~13 个月硬上限；实际有效性由后端 90 天活跃窗口判定——只要 90 天内用过就持续续期）渲染到页面。
+> 底层：`token-refresh-shim` Lambda 生成 `state`（写 DynamoDB，TTL 5 分钟）重定向到钉钉；钉钉回调后 Lambda 用授权码换 `access_token`+`refresh_token` 存进 Secrets Manager（KMS 加密），再用 SSM 里的 HMAC 主密钥派生出你的 MCP token（HMAC-SHA256，~13 个月硬上限；实际有效性由后端 90 天活跃窗口判定——只要 90 天内用过就持续续期）渲染到页面。
 
 ### 第 2 步：填进 Quick Desktop
 
@@ -151,6 +151,10 @@ JSON 形式：
 
 ## token 过期处理
 
+系统里有三层 token 时钟，但只有「90 天活跃窗口」一条需要用户关心——其余全部由客户端或后端自动续：
+
+![Token 生命周期：方式 A 的 1h access + 90 天轮换 refresh、方式 B 的 ~13 个月硬上限 Bearer、共用的后端 90 天活跃窗口，以及全托管的钉钉侧 token](./assets/token-lifecycle.svg)
+
 | 情况 | 表象 | 处理 |
 |---|---|---|
 | 闲置 90 天后 MCP token 失效 | Quick 报 401 / 连接失效（极罕见） | 重新打开 `<域名>/authorize` 走一遍授权，复制新 token 替换 |
@@ -182,6 +186,10 @@ Quick 支持同时挂多个 MCP server：
 
 ## 故障排查矩阵
 
+先按图定位错误码出在链路的哪一跳，再查下表对应行：
+
+![Remote 请求链路与故障点：Quick → CloudFront/API GW → mcp-middleware → AgentCore 容器 → 钉钉，每个错误码（401/403/502/503）标注在出错的那一跳](./assets/request-chain-errors.svg)
+
 | 现象 | 可能原因 | 定位 / 处理 |
 |---|---|---|
 | Quick 停在 "Configured" 不 Connected、0 tools | ① token 过期返回 503；② 协议握手不匹配（旧版后端） | 先重新授权拿新 token；仍不行让管理员确认后端已部署最新 server（带 `Mcp-Session-Id` 头 + 协议版本协商 + 通知 202） |
@@ -210,17 +218,19 @@ Quick 支持同时挂多个 MCP server：
 
 ---
 
-## 附录：为方式 A 预注册 `quick` 客户端（每套环境一次性）
+## 附录：方式 A 的 `quick` 客户端预注册（deploy.sh 已自动化）
 
-因为 Quick 的 User authentication 不跑 DCR、直接用填入的 Client ID 打 `/authorize`，网关侧需预注册一个固定客户端，成员才能填 `quick` 连上。**部署一套新环境、或重建了 `OAuthStateTable` 后必须做一次**，否则成员填 `quick` 报 `unknown client_id`。
+因为 Quick 的 User authentication 不跑 DCR、直接用填入的 Client ID 打 `/authorize`，网关侧需预注册一个固定客户端，成员才能填 `quick` 连上。缺这条记录时，成员填 `quick` 会报 `unknown client_id`。
 
-往 `OAuthStateTable` 写一条主键为 `client#quick` 的记录，至少包含：
+**`deploy.sh` 每次部署会自动 upsert 这条 `client#quick` 记录**（无 `ttl` 属性，永不过期），回调白名单默认 `https://us-east-1.quicksight.aws.amazon.com/sn/oauthcallback`；你们 Quick 端点在其他 region/域名时，用环境变量覆盖后重跑部署：
 
-- `redirectUris`：Quick 的回调地址数组，形如 `https://<region>.quicksight.aws.amazon.com/sn/oauthcallback`（以成员实际跳转/报错里出现的回调为准）。
-- `authMethod`：`client_secret_basic`。
-- `clientName`：任意标识，如 `Amazon Quick (pre-registered)`。
-- `ttl`：一个远期 epoch 秒（避免被 TTL 清掉）。
+```bash
+QUICK_REDIRECT_URIS="https://<region>.quicksight.aws.amazon.com/sn/oauthcallback" \
+  bash packages/remote/scripts/deploy.sh
+```
+
+（多个回调用逗号分隔。成员报 `redirect_uri not in registered allowlist` 时，把报错里的回调地址加进来重跑即可。）
 
 > 验证：构造 `GET /authorize?client_id=quick&redirect_uri=<上面的回调>&response_type=code&code_challenge=<任意S256>&code_challenge_method=S256&scope=openid` 应返回 **302 跳 `login.dingtalk.com`**（而非 400 `invalid_client`），即预注册生效。
-
-**运维 backlog**：目前这步是手工写 DynamoDB，建议纳入 `deploy.sh` 部署后自动 upsert 一条 `client#quick`，避免重建表后遗漏。`OAuthStateTable` 现为 `RETAIN + PITR`，常规更新栈不会丢这条记录，但重建表会。
+>
+> 手工修复（不想整套重跑 deploy 时）：往 `OAuthStateTable` 写主键 `state = "client#quick"`、`payload` 为 JSON 串 `{"redirectUris":[...], "authMethod":"client_secret_basic", "clientName":"Amazon Quick"}` 的一条记录。`OAuthStateTable` 为 `RETAIN + PITR`，常规更新栈不会丢这条记录。

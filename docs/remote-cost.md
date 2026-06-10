@@ -1,6 +1,6 @@
 # Remote 端成本估算
 
-> us-east-1 价格（2026 年 5 月数据），三档用户量月度估算 + 单价表 + 优化清单 + Free Tier 覆盖。
+> 面向**评估部署成本的管理员**。us-east-1 价格（2026 年 5 月数据），三档用户量月度估算 + 单价表 + 优化清单 + Free Tier 覆盖。所有数字为估算，部署前建议用 AWS Pricing Calculator 按自己的调用量复核。
 
 ## 月度估算（三档）
 
@@ -23,14 +23,14 @@
 | DynamoDB storage | $0.25 / GB / month | < 0.1 GB | $0.03 |
 | CloudWatch Logs ingest | $0.50 / GB | 2 GB | $1.00 |
 | CloudWatch Logs storage | $0.03 / GB / month | 2 GB (30d) | $0.06 |
-| CloudWatch Dashboard | $3 / dashboard | 1 | $3.00 |
+| CloudWatch Dashboard | 前 3 个永久免费 | 1 | $0 |
 | CloudWatch Alarms | $0.10 / alarm | 10 | $1.00 |
 | CloudFront data out | $0.085 / GB | 0.5 GB | $0.04 |
 | CloudFront requests | $0.0075 / 10k HTTPS | 30k | $0.02 |
 | SNS publish | $0.50 / M | < 1k | $0.001 |
 | KMS request (SM uses aws/secretsmanager) | $0.03 / 10k | 30k | $0.09 |
 | **WAF（不开默认）** | — | — | $0 |
-| **合计** | | | **~$9.7 / 月** |
+| **合计** | | | **~$6.7 / 月** |
 
 开 WAF 加 $5（WebACL）+ $3（3 managed rules）+ $0.018（30k req）≈ **+$8/月**。
 
@@ -44,10 +44,10 @@
 | Secrets Manager (100 secrets + 300k API calls) | $40 + $1.5 = $41.50 |
 | DynamoDB | $0.10 |
 | CloudWatch Logs (~15 GB ingest + storage) | $7.95 |
-| CloudWatch Dashboard + Alarms | $4.00 |
+| CloudWatch Alarms（Dashboard 前 3 个免费） | $1.00 |
 | CloudFront | $0.40 |
 | SNS, KMS | $1.00 |
-| **合计** | **~$57 / 月** |
+| **合计** | **~$54 / 月** |
 
 100 用户的瓶颈：**Secrets Manager 占 ~70%**，因为每用户 $0.40。优化方案见下文。
 
@@ -61,12 +61,12 @@
 | Secrets Manager (1000 secrets + API) | $400 + $15 = $415 |
 | DynamoDB | $1.00 |
 | CloudWatch Logs (~150 GB) | $79 |
-| CloudWatch Dashboard + Alarms | $4 |
+| CloudWatch Alarms（Dashboard 免费额度内） | $1 |
 | CloudFront | $4 |
 | KMS | $9 |
 | **合计** | **~$540 / 月** |
 
-> 注：1000 用户场景**强烈建议** Secrets Manager 合并方案（见下文优化），把 $415 砍到 ~$5，总账压回 ~$130。任务摘要里写的「~$200」按合并优化估，**不优化**则 ~$540。
+> 注：1000 用户场景**强烈建议**先实现 Secrets Manager 合并方案（见下文优化 3，当前未实现），把 $415 砍到 ~$5，总账压回 ~$130；不优化则 ~$540。
 
 ## 各资源单价表（us-east-1，2026-05）
 
@@ -105,24 +105,11 @@
 
 ### 1. Log retention 缩短
 
-默认 CDK `logs.RetentionDays.ONE_MONTH`（30 天）。开发环境改 `ONE_WEEK`（7 天），存储成本下降 75%。生产可保 30 天。归档需求用 Logs subscription → S3 Glacier，$0.004/GB/月。
-
-```ts
-// 在 OAuthStack 里
-new logs.LogGroup(this, 'McpLogs', { retention: logs.RetentionDays.ONE_WEEK })
-```
+当前 Lambda 日志组按 CloudWatch 默认（**永不过期**）保留，长期运行会累积存储费。建议显式设保留期：生产 30 天、开发 7 天。可在控制台改，或在 OAuthStack 里为各 Lambda 加 LogGroup 资源指定 `retention`。归档需求用 Logs subscription → S3 Glacier（$0.004/GB/月）。
 
 ### 2. Lambda memory tuning
 
-mcp-middleware 当前 256MB。Lambda 价格按 GB-s 算，跑得越快每 invoke 越便宜，但 memory 越大每秒越贵——存在最优点。用 [Lambda Power Tuning](https://github.com/alexcasalboni/aws-lambda-power-tuning) 跑一次：
-
-| Memory | avg duration | cost / 1M |
-|---|---|---|
-| 128 MB | 240 ms | $0.20 + $0.50 |
-| 256 MB | 80 ms | $0.20 + $0.34 |
-| 512 MB | 60 ms | $0.20 + $0.50 |
-
-256MB 是 sweet spot，已经选了。token-refresh-shim cron 跑得不频繁（30min/次），128MB 即可。
+当前配置：mcp-middleware 1024MB（在请求热路径上，大内存换低延迟）、token-refresh-shim 512MB、alarm-webhook 256MB。Lambda 价格按 GB-s 算，跑得越快每 invoke 越便宜，但 memory 越大每秒越贵——存在最优点。量上来后值得用 [Lambda Power Tuning](https://github.com/alexcasalboni/aws-lambda-power-tuning) 实测一轮再定，特别是 mcp-middleware 的 1024MB 是否过配。
 
 ### 3. Secrets Manager 合并
 
@@ -138,19 +125,15 @@ mcp-middleware 当前 256MB。Lambda 价格按 GB-s 算，跑得越快每 invoke
 > 方案 C 的桶映射逻辑：`bucketId = userId.substr(0, 2)`（256 桶上限），每 100 用户均摊 $0.40 = $0.004/user，仍维持桶级隔离边界。  
 > 1000 用户场景：A 方案 $400，C 方案 $4，B 方案 $0.40。但 B 方案不推荐除非你能接受单次泄露 = 全员。
 
-切换：`packages/remote/lambda/shared/token-store.mjs` 实现两种 storage adapter，env `TOKEN_STORAGE=per-user|bucketed`。Plan 3 落地。
+切换：**当前代码只实现了方案 A（per-user）**；B/C 是用户量上来后的优化方向，尚未实现。
 
 ### 4. CloudWatch Dashboard 控制在 3 个内
 
-前 3 dashboard 免费。当前只 1 个 `QdmRemote-Main`，OK。不要为每个用户/客户做 dashboard。
+前 3 dashboard 免费。当前只 1 个 `qdm-remote`，OK。不要为每个用户/客户做 dashboard。
 
-### 5. AgentCore Runtime container reserved concurrency
+### 5. CloudFront cache
 
-如果 cold start 不是问题，关 reserved concurrency，按需启动，省 idle container 时间。当前默认 reserved=2（~$5/月 idle），10 用户场景可降到 0。100 用户保 2 即可。
-
-### 6. CloudFront 不必要的 cache 关掉
-
-我们的 endpoint 全是 POST + Authorization，本来就不会被 cache。但默认行为节点会做 ETag 协商。确认 `cache_policy=CachingDisabled` 即可，避免误命中。
+我们的 endpoint 全是 POST + Authorization，本来就不该被 cache——CDK 里已设 `CachePolicy.CACHING_DISABLED`，无需额外动作。
 
 ## Free Tier 覆盖
 
@@ -171,8 +154,8 @@ mcp-middleware 当前 256MB。Lambda 价格按 GB-s 算，跑得越快每 invoke
 
 新账号 10 用户全年大概：
 
-- 月 1-12：~$5/月（SM $4 + Dashboard $3 一部分）= **$60/年**
-- 月 13+：~$10/月
+- 月 1-12：~$5/月（大头是 SM $4）= **~$60/年**
+- 月 13+：~$7/月
 
 > 上面的「全年 $60」是估算上限，实际取决于第一年的 Free Tier 使用量是否被同账号其他工作负载吃掉。
 
@@ -180,10 +163,10 @@ mcp-middleware 当前 256MB。Lambda 价格按 GB-s 算，跑得越快每 invoke
 
 | 用户数 | 关键瓶颈 | 优化优先级 |
 |---|---|---|
-| 1-50 | Dashboard $3 + SM 累积 | 不需要优化 |
-| 50-500 | SM 占主导 | 切换 bucketed storage |
+| 1-50 | SM 按用户累积 | 不需要优化 |
+| 50-500 | SM 占主导 | 实现并切换 bucketed storage（见优化 3，未实现） |
 | 500-5000 | SM + CloudWatch Logs | bucketed + 缩短 log retention |
-| 5000+ | AgentCore container time | 加大 reserved concurrency 谈定价 + 看 dws 单调用时长 |
+| 5000+ | AgentCore container time | 看 dws 单调用时长、与 AWS 谈定价 |
 | 10000+ | 该考虑专门部署 | reserve capacity 或上架 SaaS |
 
 参考 [remote-operations.md](./remote-operations.md) 的运维清单结合本文档定期 review 成本。

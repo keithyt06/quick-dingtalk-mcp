@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="640" viewBox="0 0 900 640" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/>
+    </marker>
+    <style>
+      .box{rx:10;ry:10;stroke-width:1.5;}
+      .lbl{font-size:13px;font-weight:600;fill:#111827;}
+      .sub{font-size:10.5px;fill:#6b7280;}
+      .edge{stroke:#6b7280;stroke-width:1.6;fill:none;marker-end:url(#arr);}
+      .edgelbl{font-size:11px;fill:#374151;font-weight:600;}
+      .edgesub{font-size:10px;fill:#6b7280;}
+      .life{stroke:#d1d5db;stroke-width:1.2;stroke-dasharray:5 4;}
+      .cap{font-size:10.5px;fill:#4b5563;}
+      .ttl{font-size:16px;font-weight:700;fill:#111827;}
+      .note{font-size:10.5px;fill:#92400e;}
+    </style>
+  </defs>
+
+  <text x="30" y="34" class="ttl">方式 A · OAuth 向导完整时序 — <tspan fill="#16a34a">你只点一次「同意」，其余全自动</tspan></text>
+
+  <!-- ===== 生命线头部 ===== -->
+  <rect x="40"  y="54" width="160" height="46" class="box" fill="#f0fdf4" stroke="#86efac"/>
+  <text x="120" y="73" text-anchor="middle" class="lbl">Quick 客户端</text>
+  <text x="120" y="90" text-anchor="middle" class="sub">（你的 MCP 客户端）</text>
+
+  <rect x="295" y="54" width="180" height="46" class="box" fill="#eef2ff" stroke="#a5b4fc"/>
+  <text x="385" y="73" text-anchor="middle" class="lbl">网关</text>
+  <text x="385" y="90" text-anchor="middle" class="sub">CloudFront + API GW + Lambda</text>
+
+  <rect x="565" y="54" width="130" height="46" class="box" fill="#e0e7ff" stroke="#a5b4fc"/>
+  <text x="630" y="73" text-anchor="middle" class="lbl" fill="#3730a3">钉钉</text>
+  <text x="630" y="90" text-anchor="middle" class="sub">login.dingtalk.com</text>
+
+  <rect x="740" y="54" width="140" height="46" class="box" fill="#fffbeb" stroke="#fcd34d"/>
+  <text x="810" y="73" text-anchor="middle" class="lbl">AWS 存储</text>
+  <text x="810" y="90" text-anchor="middle" class="sub">DynamoDB / Secrets Mgr</text>
+
+  <!-- ===== 生命线 ===== -->
+  <line x1="120" y1="100" x2="120" y2="560" class="life"/>
+  <line x1="385" y1="100" x2="385" y2="560" class="life"/>
+  <line x1="630" y1="100" x2="630" y2="560" class="life"/>
+  <line x1="810" y1="100" x2="810" y2="560" class="life"/>
+
+  <!-- ① Quick -> 网关 -->
+  <path class="edge" d="M120,132 L383,132"/>
+  <text x="252" y="124" text-anchor="middle" class="edgelbl">① GET /authorize</text>
+  <text x="252" y="146" text-anchor="middle" class="edgesub">client_id=quick · PKCE(S256) · scope=openid</text>
+
+  <!-- ② 网关 -> 存储 -->
+  <path class="edge" d="M385,176 L808,176"/>
+  <text x="597" y="168" text-anchor="middle" class="edgelbl">② 校验预注册 client#quick + 回调白名单</text>
+  <text x="597" y="190" text-anchor="middle" class="edgesub">写 OAuth 会话（10 分钟）+ state（5 分钟）到 DynamoDB</text>
+
+  <!-- ③ 网关 -> 钉钉 -->
+  <path class="edge" d="M385,222 L628,222"/>
+  <text x="507" y="214" text-anchor="middle" class="edgelbl">③ 302 跳钉钉授权页</text>
+  <text x="507" y="236" text-anchor="middle" class="edgesub">scope=openid corpid · prompt=consent</text>
+
+  <!-- 同意 note -->
+  <rect x="540" y="250" width="180" height="34" rx="8" fill="#fef3c7" stroke="#fcd34d" stroke-width="1.2"/>
+  <text x="630" y="271" text-anchor="middle" class="note" font-weight="700">你用本人钉钉账号点「同意」</text>
+
+  <!-- ④ 钉钉 -> 网关 -->
+  <path class="edge" d="M630,312 L387,312"/>
+  <text x="507" y="304" text-anchor="middle" class="edgelbl">④ 302 /callback?code&amp;state</text>
+
+  <!-- ⑤ 网关 -> 存储 -->
+  <path class="edge" d="M385,352 L808,352"/>
+  <text x="597" y="344" text-anchor="middle" class="edgelbl">⑤ state 一次性消费；code 换钉钉 access+refresh token</text>
+  <text x="597" y="366" text-anchor="middle" class="edgesub">KMS 加密存 Secrets Manager（users/&lt;userId&gt;，每人一条）</text>
+
+  <!-- ⑥ 网关 -> Quick -->
+  <path class="edge" d="M385,398 L122,398"/>
+  <text x="252" y="390" text-anchor="middle" class="edgelbl">⑥ 铸一次性 mcp_code（5 分钟）</text>
+  <text x="252" y="412" text-anchor="middle" class="edgesub">302 回 Quick 的回调地址</text>
+
+  <!-- ⑦ Quick -> 网关 -->
+  <path class="edge" d="M120,440 L383,440"/>
+  <text x="252" y="432" text-anchor="middle" class="edgelbl">⑦ POST /token（code + code_verifier）</text>
+
+  <!-- ⑧ 网关 -> Quick -->
+  <path class="edge" d="M385,478 L122,478"/>
+  <text x="252" y="470" text-anchor="middle" class="edgelbl">⑧ access_token(1h) + refresh_token(90天)</text>
+  <text x="252" y="492" text-anchor="middle" class="edgesub">PKCE 校验通过后颁发；code 用后即焚</text>
+
+  <!-- 自动续期 loop -->
+  <rect x="60" y="510" width="450" height="50" rx="8" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="1.2"/>
+  <text x="74" y="530" class="edgelbl" fill="#16a34a">循环 · 此后全自动</text>
+  <text x="74" y="548" class="edgesub">access 过期前 Quick 静默用 refresh_token 换新；refresh 每次使用即轮换（旧的作废）</text>
+
+  <text x="40" y="588" class="cap">关键点：Client ID 必须填 <tspan font-weight="700">quick</tspan>（网关预注册的固定客户端）；Client Secret 不校验（鉴权靠 PKCE），填任意非空占位即可。</text>
+  <text x="40" y="606" class="cap">三个 URL（MCP endpoint / Authorization / Token）域名须逐字一致。整个过程你只在第 ③→④ 步之间点一次「同意」。</text>
+  <text x="40" y="624" class="cap">网关对钉钉是另一层独立 OAuth（内层用 AppSecret 直连）——你的钉钉密码、AppKey/AppSecret 从不经过 Quick。</text>
+</svg>

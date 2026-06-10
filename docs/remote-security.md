@@ -1,6 +1,6 @@
 # Remote 端安全模型
 
-> v0.2 Remote 多用户 HTTPS MCP 的信任边界、密钥层级、威胁模型与已知薄弱项。
+> 面向**安全评审者与管理员**。v0.2 Remote 多用户 HTTPS MCP 的信任边界、密钥层级、威胁模型与已知薄弱项。
 
 ## 信任边界图
 
@@ -34,7 +34,7 @@
 | Edge | 鉴权机制 | 风险点 |
 |---|---|---|
 | A→B | 公网 TLS（CloudFront 默认证书 / 自定义域 ACM） | 客户端 TLS 拦截；Quick Desktop 写入文件的 token |
-| B→C | CloudFront → API GW 用 OAC (Origin Access Control) header | API GW URL 泄露绕过 CF |
+| B→C | 无源站鉴权（CloudFront 直转 API GW，未做 OAC/秘密头） | **API GW 直连 URL 可绕过 CloudFront/WAF**（见已知薄弱项 #4） |
 | C→D | API GW → Lambda 默认 IAM | API 不在 VPC，Lambda 只能被该 API 触发 |
 | D→E | Lambda role assume → SigV4 to AgentCore | Lambda role 被滥用 |
 | E→F | AgentCore 内部信任 | 容器逃逸（基本不存在，节点级） |
@@ -43,32 +43,30 @@
 
 ## MCP HMAC token + incrAuthToken 域分离
 
-所有用户态 token 都是 **HMAC-SHA256 派生**，不是 JWT，不可在客户端解出 payload 以外的东西。
+所有自签的用户态 token 都是 **HMAC-SHA256 签名**，不是 JWT，客户端改不了 payload（改了验签即失败）。OAuth 路径的 refresh token 是另一类：服务端有状态的不透明随机串（存 DDB，详见下文 PKCE 节）。
 
-| Token | 主密钥位置 | 用途 | 生命周期 | scope |
-|---|---|---|---|---|
-| `mcpToken` | SSM `/quick-dingtalk-mcp/hmac-key-mcp`（KMS） | Authorization: Bearer 调用 `/mcp` | 24h | 全部已授权 dingtalk scope |
-| `incrAuthToken` | SSM `/quick-dingtalk-mcp/hmac-key-incr`（KMS） | 调用 `/authorize?incremental=1` 加 scope | 10 分钟 | 只能签 OAuth state，不能调 mcp |
+| Token | 签名密钥 | 用途 | 生命周期 |
+|---|---|---|---|
+| OAuth access token（方式 A） | 同一把 HMAC 主密钥，domain=`mcp` | Authorization: Bearer 调用 `/mcp` | 1h（Quick 用 refresh_token 自动续） |
+| `mcpToken`（方式 B HTML fallback） | 同一把 HMAC 主密钥，domain=`mcp` | Authorization: Bearer 调用 `/mcp` | ~13 个月硬上限；实际有效性由 90 天活跃窗口判定 |
+| `incrAuthToken` | 同一把 HMAC 主密钥，domain=`incr` | `/authorize?t=...` 增量加 scope | 10 分钟；只能开 OAuth 授权流，不能调 `/mcp` |
 
-**域分离**：两把 HMAC 主密钥不同 key id，alarm-webhook Lambda 可单独旋转 `incr` 而不重置全部用户 mcp token。一旦发现某用户的 mcpToken 被滥用：
+**域分离**：只有一把 HMAC 主密钥（SSM SecureString `/qdm-remote/QdmRemoteOAuth/hmac-key`），但签名输入带 domain 前缀（`mcp:` / `incr:`），且 verify 时校验 token 第一段的 domain 标识——incr token 拿去调 `/mcp` 直接被拒（domain 不符；即便篡改 domain 段，签名绑定了 domain 也会验签失败），反之亦然。
 
-1. `ops.sh revoke <userId>` 删除 SM secret + DDB 映射
-2. 用户必须重新走 `AuthorizeUrl`，老 token 在下次 verify 时找不到 secret，自动 401
-
-主密钥旋转：把 SSM 参数版本 +1，Lambda env `HMAC_KEY_VERSION` 跟着升；老 token 进 grace period（默认 24h）后失效。
-
-token payload（base64url 编码）：
+token 格式：`base64url(domain).base64url(payload).hex(sig)`，payload 为：
 
 ```json
-{
-  "uid": "u_5f23a8b1c4",
-  "ver": 3,
-  "exp": 1735689600,
-  "scopes": ["Contact.User.Read", "im.message.send_to_chat"]
-}
+{ "d": "mcp", "uid": "u_5f23a8b1c4", "exp": 1735689600 }
 ```
 
-签名段拼 `sha256(hmac_key_v<ver> || payload)`。
+（incr token 额外带 `scopes` 数组。）scope 不进 mcp token——实际可调什么由后端按该用户钉钉 access_token 的真实授权决定。
+
+一旦发现某用户的 mcpToken 被滥用：
+
+1. `ops.sh revoke <userId>` 删除该用户的 SM secret
+2. 老 token 在下次 verify 时找不到 secret，自动 401；用户重走 `AuthorizeUrl` 即可恢复
+
+主密钥旋转：`aws ssm put-parameter --overwrite` 写入新值。**没有版本号/grace 机制**——Lambda 拿到新 key 后全部存量 token 立即失效（全员重新授权），仅在怀疑主密钥泄露时使用。注意 Lambda 进程内缓存 key，需触发冷启才完全生效。
 
 ## SM + KMS 加密
 
@@ -76,80 +74,81 @@ token payload（base64url 编码）：
 
 | 项 | 值 |
 |---|---|
-| KMS key | 默认 `alias/aws/secretsmanager`（AWS-managed）；可在 OAuthStack `kmsKeyArn` 上下文传 CMK |
-| 字段 | `{ access_token, refresh_token, expires_at, ding_user_id, scope, granted_at }` |
-| 删除策略 | `RecoveryWindowInDays: 7`（软删；`ops.sh revoke` 可强制 0 天） |
-| 访问 | 仅 `mcp-middleware` Lambda role 和 `token-refresh-shim` Lambda role 有 `secretsmanager:GetSecretValue`；按 secret name 前缀范围 |
+| KMS key | `alias/aws/secretsmanager`（AWS-managed） |
+| 字段 | `{ access_token, refresh_token, expires_at, scope, needs_reauth?, last_active? }`（钉钉侧 token + 活跃窗口元数据） |
+| 删除策略 | 默认 30 天恢复窗口（AWS DeleteSecret 默认值；未显式传 `RecoveryWindowInDays`）；要立即清走 CLI `--force-delete-without-recovery` |
+| 访问 | `mcp-middleware`（Get + Put，Put 仅为回写 `last_active`）与 `token-refresh-shim`（读写 + 账号级 ListSecrets）按 secret name 前缀授权 |
 
-container（Runtime）侧不直接读 SM——它收到 Lambda 已经解出来的 access_token，避免 IAM 给容器太多权限。这是与 lark-mcp-on-agentcore 的一个关键差异：lark 让容器自己掏 token，运维更简单但 IAM 面积更大。
+container（Runtime）侧运行时不读 SM——它收到的是 mcp-middleware 已解出、经 `x-user-access-token` 头注入的 access_token。这是与 lark-mcp-on-agentcore 的一个关键差异：lark 让容器自己掏 token，运维更简单但 IAM 面积更大。（注：当前 Runtime role 仍保留了一条 `secretsmanager:GetSecretValue` 授权，代码路径未使用，属可收紧项。）
 
 ## PKCE OAuth state 防重放
 
-`/authorize` Lambda：
+`/authorize` Lambda（对钉钉的内层流）：
 
 ```
-code_verifier = random_urlsafe(64)
+code_verifier = random(PKCE)
 code_challenge = base64url(sha256(code_verifier))
-state = random_urlsafe(32)
-ddb.put({ pk: state, code_verifier, scope, ttl: now+600 })
-redirect → dingtalk.com/oauth2/authorize?code_challenge=...&state=...
+state = random(16 bytes, base64url)
+ddb.put({ state, payload:{verifier, scopes, oauthSessionId?}, ttl: now+300 })   # 5 分钟
+redirect → login.dingtalk.com/oauth2/auth?code_challenge=...&state=...&prompt=consent
 ```
 
 `/callback` Lambda：
 
 ```
-ddb.consume(state)  // ConditionExpression: attribute_exists + delete in same txn
-  fail → 400 invalid_state
-  ok   → exchange code with code_verifier
+consumeState(state)  // 原子 DeleteItem(ReturnValues=ALL_OLD)：读取即销毁，并发兑换只有一个能赢；代码内校验 ttl（不只靠 DDB TTL 的 best-effort 清理）
+  fail → 400 state expired or unknown
+  ok   → 用 code_verifier + AppSecret 换钉钉 token
 ```
 
-防御：
+外层（对 Quick 等 MCP 客户端）是另一套独立 OAuth 2.1：强制 PKCE S256，授权码 `code#`（5 分钟、一次性）、会话 `sess#`（10 分钟）、refresh token `refresh#`（90 天、**有状态不透明串、每次使用即轮换**——旧串重放时已被删除，天然具备 OAuth 2.1 重用检测）。全部记录复用同一张 `OAuthStateTable`（RETAIN + PITR）。
 
-- **state 一次性**：DDB 条件删除，重放即 400
-- **TTL 10 分钟**：DDB TTL 自动清理过期 state
-- **PKCE**：钉钉侧也校验 code_challenge，防 code 截获换 token
+防御汇总：
+
+- **state / code 一次性**：用后即删，重放即 400；TTL 在代码内强制校验（DDB TTL 删除可能滞后数小时）
+- **refresh token 轮换**：泄露的旧 refresh token 在合法客户端续期一次后即失效
+- **PKCE 双层**：外层校验 Quick 的 code_verifier；内层向钉钉发 code_challenge（钉钉侧是否强制校验待实测确认）
+- **`?t=`（增量授权）与 OAuth 参数互斥**：防止用 incr token 绕过钉钉同意页为任意 client 铸 code
+- **DCR 限速**：`POST /register` 1 rps / burst 10，防匿名灌表
 
 ## SigV4 链路签名
 
 mcp-middleware → AgentCore：用 Lambda role 签 SigV4 调 `bedrock-agentcore:InvokeAgentRuntime`。
 
-容器 `docker/server.js` 收到的 invocation 已带 SigV4 上下文，但容器内 `provisionUserConfig(uid, accessToken)` **只信 Lambda 注入的 payload**，不再回查 SM。这避免了容器持有 SM/KMS 权限。
+容器 `docker/server.js` 收到的请求已由 AgentCore 平台完成 SigV4 验证；容器内的 token 注入**只信 mcp-middleware 经 `x-user-id` / `x-user-access-token` 头传来的值**，运行时不回查 SM。
 
 容器 IAM role 只允许：
 
 - 写自己 stdout/stderr 到 CloudWatch Logs
-- `bedrock-agentcore:GetInvocationContext`（读自己的 payload）
-- 没有任何对外 AWS API 权限
+- 从 bootstrap ECR 拉镜像
+- 一条按前缀范围的 `secretsmanager:GetSecretValue`（当前代码路径未使用，可收紧）
 
 ## WAF 速率限制
 
-可选启用（`WafStack`，us-east-1 CloudFront-scope WAFv2）：
+可选启用（`WafStack`，us-east-1 CloudFront-scope WAFv2），当前 2 条规则：
 
 | 规则 | 阈值 | 动作 |
 |---|---|---|
-| RateLimit per-IP | 5 分钟内 > 1000 reqs | Block 5 分钟 |
-| AWSManagedRulesCommonRuleSet | OWASP top 10 | Count（先观察） |
-| AWSManagedRulesKnownBadInputsRuleSet | known bad inputs | Block |
-| BodySizeLimit | request body > 1MB | Block 413 |
+| rate-limit-per-ip | 滑动 5 分钟窗口内 > 1000 reqs/IP | Block |
+| AWSManagedRulesCommonRuleSet | OWASP 常见攻击 | 按托管规则默认动作 |
 
 启用方式：
 
 ```bash
 cd packages/remote/infra
-npx cdk deploy QdmRemoteWaf --context wafEnabled=true
+npx cdk deploy QdmRemoteWaf -c enableWaf=true
 ```
 
-不启用 WAF 时，CloudFront 仍有默认抗 DDoS（Shield Standard），但 application-layer 没限速。
+注意：WebACL 创建后需手动关联到 OAuthStack 的 CloudFront Distribution（跨 region 关联 CDK 暂未自动化，栈输出里有提示）。不启用 WAF 时，CloudFront 仍有默认抗 DDoS（Shield Standard），但 application-layer 没限速。
 
 ## 容器隔离
 
 `docker/server.js` 是单容器多用户。隔离手段：
 
-1. **DWS_CONFIG_DIR**：每个 invocation 改 `process.env.DWS_CONFIG_DIR=/var/dws/users/<uid>` 后 execFile dws，dws 把 token、缓存、cookie 都写这个 dir。
-2. **execFile 不 spawn shell**：`execFile(dws, args, { env })`，args 数组传，避免命令注入。
-3. **semaphore=10**：`MAX_CONCURRENCY` 限制同时跑的 dws 进程数，超了排队 30s 后 503。
-4. **USER node 非 root**：Dockerfile 末尾 `USER node`，写 `/var/dws` 走 `chown node:node /var/dws`。
-5. **/tmp 隔离**：每 invocation 结束后 `rm -rf /var/dws/users/<uid>/cache/`（保留 token），防 disk 累积。
+1. **DWS_CONFIG_DIR**：每个用户独立 `/var/dws/users/<uid>`，dws 的 token、缓存都写各自目录（注入策略 `INJECT_STRATEGY=d2`，即 `dws auth login --token`，已实测）。
+2. **execFile 不 spawn shell**：args 数组传参，避免命令注入。
+3. **semaphore**：`MAX_CONCURRENT`（默认 10）限制同时跑的 dws 进程数，超出排队等待。
+4. **USER node 非 root**：Dockerfile 末尾 `USER node`，`/var/dws` 已 `chown node:node`。
 
 依旧存在的薄弱：同容器内进程级隔离（不是 VM/microVM 级），见下文 STRIDE。
 
@@ -158,12 +157,12 @@ npx cdk deploy QdmRemoteWaf --context wafEnabled=true
 | 类别 | 威胁 | 缓解 | 残余风险 |
 |---|---|---|---|
 | **S**poofing | 伪造他人 mcpToken | HMAC 主密钥 KMS + SSM SecureString，Lambda role 范围限制 | 低；主密钥泄露需要 root account |
-| | 伪造 ding callback | state 一次性、PKCE、CloudFront → API GW OAC | 极低 |
-| **T**ampering | 篡改请求 body | TLS + CloudFront OAC + body 1MB 限 | 低 |
-| | 篡改容器镜像 | ECR image scan + immutable tag + AgentCore digest pinning | 低；ECR 账号被攻陷除外 |
-| **R**epudiation | 用户否认操作 | DDB audit log: `userId, tool, args_hash, ts` | 中；args 不全存（隐私）只 hash |
-| **I**nformation Disclosure | secret 泄露 | KMS、Secrets Manager、Lambda env 不写 token | 低；CW Logs 误打 token 是历史踩坑点，已加 redact 中间件 |
-| | 跨用户串号 | DWS_CONFIG_DIR + provisionUserConfig 强制刷 env | **中**；inject-token D2 (`dws auth-import`) 要求 dws 不缓存全局 |
+| | 伪造 ding callback | state 一次性 + 代码内 TTL 校验、PKCE | 极低 |
+| **T**ampering | 篡改请求 body | TLS 全链路 + HMAC 验签 | 低 |
+| | 篡改容器镜像 | 镜像存 CDK bootstrap ECR，AgentCore 按 image digest 引用 | 低；ECR 账号被攻陷除外 |
+| **R**epudiation | 用户否认操作 | Lambda/容器结构化日志含 userId（CloudWatch Logs，默认保留） | 中；**无独立 audit 表**，依赖日志保留期 |
+| **I**nformation Disclosure | secret 泄露 | KMS、Secrets Manager、结构化日志不打 token 字段 | 低；新增日志时注意勿打 token（无自动 redact 中间件兜底） |
+| | 跨用户串号 | DWS_CONFIG_DIR + 每用户独立注入（D2 `dws auth login --token`） | **中**；依赖 dws 无全局缓存（v1.0.32 已确认无） |
 | **D**oS | 单 IP 灌爆 | WAF rate limit + API GW throttle + AgentCore concurrency | 中；不开 WAF 时 API GW $1/M 也是钱 |
 | | 烧 ding API quota | 容器 semaphore=10 + ding 侧 per-app rate | 中；恶意用户可烧光企业额度 |
 | **E**levation of Privilege | 容器逃逸 | AgentCore 节点托管，单容器 USER node | 低；依赖 AWS 边界 |
@@ -171,21 +170,21 @@ npx cdk deploy QdmRemoteWaf --context wafEnabled=true
 
 ## 已知薄弱项
 
-记录在案、Plan 3 待修：
+记录在案、待修：
 
-1. **inject-token D2 串号风险**：默认走 `dws auth-import` 把 token 文件写 `DWS_CONFIG_DIR`。如果 dws 内部有全局缓存（v1.0.32 已确认无），同容器多用户切换时可能读到上一个用户。Plan 3 要做 D2 PoC 验证，并保留 D1（直接写 file-DEK）作为 fallback。可通过 `INJECT_STRATEGY=D1|D2|D3` 切换。
-2. **mcpToken 24h 不可单独撤销**：撤销靠 SM secret 删除（懒失效）。要做即时黑名单需要加 DDB allowlist 表，每个请求查一次，会加 ~5ms 延迟，目前未做。
-3. **WAF 关掉时无 application-layer 限速**：deploy.sh 默认 `wafEnabled=false`（省 $5/月），生产建议开。
-4. **CloudFront → API GW 用 header 校验 OAC**，`x-cloudfront-secret` SSM 取，泄露则 CF 可被绕过。每次 deploy 自动旋转。
-5. **alarm-webhook → 钉钉群 webhook 是明文**：webhook URL 在 SSM SecureString，但群里看到的告警卡片含 stack name，泄露给非运维成员可能暴露内部 stack 命名。
-6. **没做 IP allowlist**：Plan 3 拟加 `ALLOWED_CIDRS` ENV，企业部署可锁内网出口。
+1. **inject-token D2 依赖 dws 行为**：默认 `INJECT_STRATEGY=d2`（`dws auth login --token` 写各用户的 `DWS_CONFIG_DIR`），依赖 dws 没有跨目录的全局缓存（v1.0.32 已确认无）。dws 升版本时需重验；D1（直接写加密 token 文件）当前是 stub，不可用作即时 fallback。
+2. **token 不可单独即时撤销**：撤销靠删 SM secret（懒失效，下一次请求才 401）。要做即时黑名单需要加 DDB allowlist 表，每个请求查一次，会加 ~5ms 延迟，目前未做。
+3. **WAF 关掉时无 application-layer 限速**：deploy.sh 默认不开 WAF（省 ~$6/月），生产建议开。
+4. **CloudFront → API GW 无源站鉴权**：API GW 的 `execute-api` 直连 URL 若被发现，可绕过 CloudFront（以及 WAF）直接打到后端——HMAC 鉴权仍然有效，但限速/防护层失效。待加 OAC 或秘密头校验。
+5. **alarm-webhook → 钉钉群 webhook 卡片含 alarm 名等内部信息**：webhook URL 在部署时以 context 传入，告警卡片泄露给非运维成员可能暴露内部命名。
+6. **没做 IP allowlist**：企业部署如需锁内网出口，待加 `ALLOWED_CIDRS`。
 
 ## 与 lark-mcp-on-agentcore 的差异
 
 | 维度 | lark-mcp-on-agentcore | quick-dingtalk-mcp v0.2 |
 |---|---|---|
-| token 存储 | 容器内 SM 自取 | Lambda 取后注入 payload，容器无 SM 权限 |
-| 域分离 | 单 HMAC | mcp + incr 两把 HMAC |
-| state 防重放 | TTL only | TTL + 条件删除 |
-| 限速 | API GW throttle | 可选 WAF + API GW throttle |
-| 配置隔离 | per-container | per-invocation DWS_CONFIG_DIR |
+| token 存储 | 容器内 SM 自取 | Lambda 取后经头注入，容器运行时不读 SM |
+| 域分离 | 单 HMAC 单用途 | 一把主密钥、`mcp`/`incr` 双域签名分离 |
+| state 防重放 | TTL only | 用后即删 + 代码内 TTL 校验 |
+| 限速 | API GW throttle | 可选 WAF + DCR 路由级 throttle |
+| 配置隔离 | per-container | per-user DWS_CONFIG_DIR |
