@@ -77,7 +77,7 @@
 Client ID 没填对。本网关预置了 `quick` 这个客户端，**Client ID 必须正好填 `quick`**（别留空、别自己改）。
 
 **「redirect_uri not in registered allowlist」（授权第一步报错）**
-你的 Quick 回调地址不在网关白名单里。把 Quick 报错里显示的回调地址（形如 `https://<region>.quicksight.aws.amazon.com/sn/oauthcallback`）发给管理员加白名单即可。
+你的 Quick 回调地址不在网关白名单里。把 Quick 报错里显示的回调地址（形如 `https://<region>.quicksight.aws.amazon.com/sn/oauthcallback`）发给管理员加白名单即可。**这不是你配错了**——是管理员侧的一次性动作，加完你重试一次就好。
 
 **「Configured」一直不变「Connected」**
 先确认 URL 结尾是 `/mcp`；再确认授权那一步真的点完了钉钉「同意」。仍不行找管理员看日志。
@@ -111,18 +111,9 @@ A：OAuth 向导版授权后 token 自动回填、自动续期，省去复制粘
 
 ---
 
-## 附录（管理员）：为什么 Client ID 是 `quick`，新环境怎么准备
+> 🔧 **以下仅管理员相关，普通成员到此即可，无需继续阅读。**
 
-普通成员可跳过本节。
-
-Amazon Quick 的「User authentication」表单**强制要求填 Client ID/Secret，且不会自动跑动态客户端注册（DCR）**——它拿你填的 Client ID 直接打 `/authorize`。所以网关侧必须**预先注册**一个固定客户端，成员填它的 ID 即可。本部署预注册的 ID 就是 `quick`。
-
-部署一套新环境（或重建了 OAuthStateTable）后，需做两件事，否则成员填 `quick` 会报 `unknown client_id`：
-
-1. **预注册 `quick` 客户端**：往 OAuthStateTable 写一条主键 `client#quick` 的记录，内容为该客户端的 `redirectUris`（即 Quick 的回调地址）、`authMethod`、`clientName`，并带一个远期 `ttl`。
-2. **把 Quick 的回调地址加进该客户端的 `redirectUris` 白名单**：形如 `https://<region>.quicksight.aws.amazon.com/sn/oauthcallback`（以成员实际报错/实际跳转的回调为准）。
-
-> 这两步目前是手工写 DynamoDB。更稳妥的做法是把 `quick` 客户端的预注册纳入 `deploy.sh`（部署后自动 upsert 一条 `client#quick`），避免重建表后遗漏——见运维 backlog。注意 OAuthStateTable 现为 `RETAIN + PITR`，正常更新栈不会丢这条记录。
+**为什么 Client ID 固定是 `quick`**：Amazon Quick 的「User authentication」表单强制要填 Client ID/Secret 且不跑动态注册（DCR），直接拿你填的 ID 打 `/authorize`，所以网关侧必须预注册一个固定客户端。部署新环境（或重建了 OAuthStateTable）后，管理员需一次性预注册 `client#quick` 并把 Quick 回调加进它的白名单，否则成员填 `quick` 会报 `unknown client_id`。具体步骤（写哪条 DynamoDB 记录、如何验证）见 [remote-quick-desktop.md 的「附录：为方式 A 预注册 `quick` 客户端」](./remote-quick-desktop.md#附录为方式-a-预注册-quick-客户端每套环境一次性)。
 
 ---
 
