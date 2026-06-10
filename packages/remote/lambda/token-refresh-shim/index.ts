@@ -41,6 +41,11 @@ const MCP_TOKEN_MAX_LIFETIME_SEC = 400 * 86400;
 // defense-in-depth — OAuth just gives Quick a token it can rotate itself.
 const OAUTH_ACCESS_TTL_SEC = parseInt(process.env.OAUTH_ACCESS_TTL_SEC || String(3600), 10);
 const OAUTH_REFRESH_TTL_SEC = parseInt(process.env.OAUTH_REFRESH_TTL_SEC || String(90 * 86400), 10);
+// Same 90-day idle window the mcp-middleware enforces on /mcp (review #9): a
+// refresh_token must not out-live the user's activity window, otherwise a host
+// that only refreshes (never calls /mcp) keeps minting access tokens that /mcp
+// then 401s — incoherent lifecycles. Same env name as middleware on purpose.
+const IDLE_WINDOW_SEC = parseInt(process.env.IDLE_WINDOW_SEC || String(90 * 86400), 10);
 // dws v1.0.32 requests `openid corpid` by default (auth/endpoints.go: DefaultScopes).
 // `corpid` is needed for the enterprise context (corpId) most org-level APIs require.
 const DEFAULT_SCOPES = (process.env.DEFAULT_SCOPES || "openid corpid").split(/[, ]+/).map(s => s.trim()).filter(Boolean);
@@ -98,21 +103,7 @@ async function putState(state: string, payload: StatePayload): Promise<void> {
 }
 
 async function consumeState(state: string): Promise<StatePayload | null> {
-  const r = await ddb.send(new GetItemCommand({
-    TableName: DDB_TABLE,
-    Key: { state: { S: state } },
-  }));
-  if (!r.Item) return null;
-  await ddb.send(new DeleteItemCommand({
-    TableName: DDB_TABLE,
-    Key: { state: { S: state } },
-  }));
-  const payload = r.Item.payload?.S;
-  if (!payload) return null;
-  // Reject past-ttl state in code (DynamoDB TTL sweep is best-effort/laggy).
-  const ttl = r.Item.ttl?.N;
-  if (ttl && Math.floor(Date.now() / 1000) > Number(ttl)) return null;
-  return JSON.parse(payload);
+  return ddbConsume<StatePayload>(state);
 }
 
 // --- OAuth Authorization Server records (same OAuthStateTable, key-prefixed) ---
@@ -150,6 +141,25 @@ async function ddbGet<T>(key: string): Promise<T | null> {
 async function ddbDelete(key: string): Promise<void> {
   await ddb.send(new DeleteItemCommand({ TableName: DDB_TABLE, Key: { state: { S: key } } }));
 }
+// Atomic read-and-burn: DeleteItem with ReturnValues=ALL_OLD removes the record
+// and hands back its prior content in one call. Used for one-time records
+// (DingTalk state, authorization_code) so two concurrent redemptions can never
+// BOTH observe the record (the old get-then-delete pair had that race), and so
+// ANY redemption attempt — even one that later fails PKCE/client checks —
+// permanently burns the record (OAuth 2.1 single-use requirement, review #6).
+async function ddbConsume<T>(key: string): Promise<T | null> {
+  const r = await ddb.send(new DeleteItemCommand({
+    TableName: DDB_TABLE,
+    Key: { state: { S: key } },
+    ReturnValues: "ALL_OLD",
+  }));
+  const payload = r.Attributes?.payload?.S;
+  if (!payload) return null;
+  // Enforce expiry in code — DynamoDB TTL sweep is best-effort/laggy (review #1).
+  const ttl = r.Attributes?.ttl?.N;
+  if (ttl && Math.floor(Date.now() / 1000) > Number(ttl)) return null;
+  return JSON.parse(payload) as T;
+}
 
 const putClient = (id: string, rec: ClientRecord) => ddbPut(`client#${id}`, rec, 400 * 86400);
 const getClient = (id: string) => ddbGet<ClientRecord>(`client#${id}`);
@@ -157,8 +167,7 @@ const putOAuthSession = (id: string, rec: OAuthSession) => ddbPut(`sess#${id}`, 
 const getOAuthSession = (id: string) => ddbGet<OAuthSession>(`sess#${id}`);
 const delOAuthSession = (id: string) => ddbDelete(`sess#${id}`);
 const putMcpCode = (code: string, rec: McpCodeRecord) => ddbPut(`code#${code}`, rec, 300);
-const getMcpCode = (code: string) => ddbGet<McpCodeRecord>(`code#${code}`);
-const delMcpCode = (code: string) => ddbDelete(`code#${code}`);
+const consumeMcpCode = (code: string) => ddbConsume<McpCodeRecord>(`code#${code}`);
 const putRefresh = (tok: string, rec: RefreshRecord) => ddbPut(`refresh#${tok}`, rec, OAUTH_REFRESH_TTL_SEC);
 const getRefresh = (tok: string) => ddbGet<RefreshRecord>(`refresh#${tok}`);
 const delRefresh = (tok: string) => ddbDelete(`refresh#${tok}`);
@@ -209,7 +218,11 @@ async function refreshAccessToken(refreshToken: string): Promise<{ access_token:
   });
   if (!r.ok) {
     const t = await r.text();
-    throw new Error(`DingTalk refresh failed: ${r.status} ${t}`);
+    // Tag definitive rejections (4xx: invalid/expired/revoked grant) so the
+    // caller can distinguish them from transient failures (5xx, network).
+    const err: any = new Error(`DingTalk refresh failed: ${r.status} ${t}`);
+    err.permanent = r.status >= 400 && r.status < 500;
+    throw err;
   }
   const j = await r.json() as any;
   return {
@@ -227,7 +240,11 @@ async function fetchUserId(accessToken: string): Promise<string> {
   });
   if (!r.ok) throw new Error(`DingTalk user/me failed: ${r.status}`);
   const j = await r.json() as any;
-  return j.unionId || j.userid || j.openId || j.userId;
+  const uid = j.unionId || j.userid || j.openId || j.userId;
+  // Fail loudly: a missing id would otherwise store the token under the
+  // literal secret name "users/undefined" and break every later lookup.
+  if (!uid) throw new Error("DingTalk user/me returned no user id");
+  return uid;
 }
 
 // --- HTTP route handlers ---
@@ -330,6 +347,16 @@ async function handleCallback(event: APIGatewayProxyEventV2): Promise<APIGateway
   const stateData = await consumeState(qs.state);
   if (!stateData) return { statusCode: 400, body: "state expired or unknown" };
 
+  // Standard OAuth path: load the in-flight session BEFORE doing anything with
+  // the DingTalk token. If the session expired (slow consent), fail here with
+  // nothing persisted — previously putUserToken ran first, leaving a stored
+  // DingTalk token + consumed state but no code (review #7).
+  let session: OAuthSession | null = null;
+  if (stateData.oauthSessionId) {
+    session = await getOAuthSession(stateData.oauthSessionId);
+    if (!session) return { statusCode: 400, body: "oauth session expired" };
+  }
+
   let token;
   try {
     token = await exchangeCodeForToken(qs.code, stateData.verifier);
@@ -338,7 +365,21 @@ async function handleCallback(event: APIGatewayProxyEventV2): Promise<APIGateway
     return { statusCode: 502, body: "DingTalk token exchange failed" };
   }
 
-  const userId = stateData.uid || await fetchUserId(token.access_token);
+  let userId: string;
+  if (stateData.uid) {
+    // Incremental-auth path: the state pins the uid the re-consent is FOR.
+    // Verify the DingTalk account that actually consented matches — otherwise
+    // a consent completed under a different account would silently overwrite
+    // user A's stored token with user B's (identity/token mismatch persisted).
+    const actual = await fetchUserId(token.access_token);
+    if (actual !== stateData.uid) {
+      log.warn("incr-auth uid mismatch", { expected: stateData.uid, actual });
+      return { statusCode: 400, body: "consenting DingTalk account does not match the session user" };
+    }
+    userId = stateData.uid;
+  } else {
+    userId = await fetchUserId(token.access_token);
+  }
   const expiresAt = Math.floor(Date.now() / 1000) + token.expires_in;
   const userToken: UserToken = {
     access_token: token.access_token,
@@ -351,9 +392,7 @@ async function handleCallback(event: APIGatewayProxyEventV2): Promise<APIGateway
   // Standard OAuth path: mint a one-time mcp_code bound to this user + the
   // session's client/redirect/PKCE, then 302 back to Quick's redirect_uri.
   // Quick exchanges the code at /token (verifying PKCE) for access+refresh.
-  if (stateData.oauthSessionId) {
-    const session = await getOAuthSession(stateData.oauthSessionId);
-    if (!session) return { statusCode: 400, body: "oauth session expired" };
+  if (session) {
     const code = genAuthCode();
     await putMcpCode(code, {
       userId,
@@ -429,14 +468,15 @@ async function handleToken(event: APIGatewayProxyEventV2): Promise<APIGatewayPro
     if (!code || !clientId || !redirect_uri || !code_verifier) {
       return jsonResult(400, { error: "invalid_request", error_description: "missing code/client_id/redirect_uri/code_verifier" });
     }
-    const rec = await getMcpCode(code);
+    // One-time: ANY redemption attempt burns the code (atomic delete-with-return),
+    // even if it then fails client/redirect/PKCE checks — OAuth 2.1 single-use.
+    const rec = await consumeMcpCode(code);
     if (!rec) return jsonResult(400, { error: "invalid_grant", error_description: "authorization_code invalid or expired" });
     if (rec.clientId !== clientId) return jsonResult(400, { error: "invalid_client", error_description: "client_id mismatch" });
     if (rec.redirectUri !== redirect_uri) return jsonResult(400, { error: "invalid_grant", error_description: "redirect_uri mismatch" });
     if (!verifyPkceS256(code_verifier, rec.codeChallenge)) {
       return jsonResult(400, { error: "invalid_grant", error_description: "PKCE verification failed" });
     }
-    await delMcpCode(code); // one-time
     const access_token = signMcpToken({ userId: rec.userId, expiresInSec: OAUTH_ACCESS_TTL_SEC }, hmacKey);
     const refresh_token = genRefreshToken();
     await putRefresh(refresh_token, { userId: rec.userId, clientId, scope: rec.scope });
@@ -463,6 +503,16 @@ async function handleToken(event: APIGatewayProxyEventV2): Promise<APIGatewayPro
     if (!ut || ut.needs_reauth) {
       await delRefresh(refresh_token);
       return jsonResult(400, { error: "invalid_grant", error_description: "user re-authorization required" });
+    }
+    // Idle-window check (review #9): mirror mcp-middleware's 90-day activity
+    // window. If the user hasn't made a real /mcp call within the window, the
+    // access token we'd mint would only 401 there — deny coherently and burn
+    // the refresh token so the host re-runs the authorize flow. Refresh itself
+    // does NOT count as activity (last_active is only written by /mcp calls),
+    // otherwise an auto-refreshing host could keep an unused session alive forever.
+    if (typeof ut.last_active === "number" && Math.floor(Date.now() / 1000) - ut.last_active >= IDLE_WINDOW_SEC) {
+      await delRefresh(refresh_token);
+      return jsonResult(400, { error: "invalid_grant", error_description: "session idle-expired; re-authorization required" });
     }
     // Rotate: invalidate the presented token, issue a fresh one. A replayed old
     // token then fails (getRefresh returns null) — OAuth 2.1 reuse detection.
@@ -495,7 +545,14 @@ async function handleRefreshOne(userId: string): Promise<{ ok: boolean; reason?:
     return { ok: true };
   } catch (e: any) {
     log.error("refresh failed", { userId, err: e.message });
-    await putUserToken(userId, { ...t, needs_reauth: true });
+    // Only a definitive DingTalk rejection (4xx: grant invalid/expired/revoked)
+    // means the user must re-auth. A 5xx or network blip is transient — marking
+    // needs_reauth there force-logged-out users on every DingTalk hiccup
+    // (middleware 401s needs_reauth immediately). Transient: keep state, retry
+    // on the next 30-min schedule; the 60-min buffer gives ≥1 more attempt.
+    if (e.permanent) {
+      await putUserToken(userId, { ...t, needs_reauth: true });
+    }
     return { ok: false, reason: e.message };
   }
 }

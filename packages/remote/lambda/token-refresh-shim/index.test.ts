@@ -28,7 +28,15 @@ const fakeDdb = {
       if (!v) return {};
       return { Item: { state: { S: cmd.input.Key.state.S }, payload: { S: v.payload }, ...(v.ttl ? { ttl: { N: v.ttl } } : {}) } };
     }
-    if (op === "DeleteItemCommand") { ddbStore.delete(cmd.input.Key.state.S); return {}; }
+    if (op === "DeleteItemCommand") {
+      const k = cmd.input.Key.state.S;
+      const v = ddbStore.get(k);
+      ddbStore.delete(k);
+      if (cmd.input.ReturnValues === "ALL_OLD" && v) {
+        return { Attributes: { state: { S: k }, payload: { S: v.payload }, ...(v.ttl ? { ttl: { N: v.ttl } } : {}) } };
+      }
+      return {};
+    }
     throw new Error(`unknown ddb op ${op}`);
   },
 };
@@ -150,6 +158,19 @@ test("/callback: full happy path → SM stores token + html with mcp token", asy
   assert.ok(stored.expires_at > now + 7000 && stored.expires_at <= now + 7200, `expires_at ~now+7200, got ${stored.expires_at - now}`);
 });
 
+test("/callback: user/me returns no id → 500, token NOT stored under 'undefined'", async () => {
+  fetchImpl = async (url) => {
+    if (url.includes("oauth2/userAccessToken")) return new Response(JSON.stringify({ accessToken: "AT", refreshToken: "RT", expiresIn: 7200, scope: "openid" }), { status: 200 });
+    if (url.includes("contact/users/me")) return new Response(JSON.stringify({}), { status: 200 }); // no id fields
+    return new Response("nope", { status: 404 });
+  };
+  await handler(ev("GET", "/authorize", { qs: {} }), {} as any);
+  const dingState = [...ddbStore.keys()].find((k) => !k.includes("#"))!;
+  const cb = await handler(ev("GET", "/callback", { qs: { code: "c", state: dingState } }), {} as any);
+  assert.equal((cb as any).statusCode, 500);
+  assert.equal(smStore.size, 0, "nothing must be stored when user id is missing");
+});
+
 test("/callback: unknown state → 400", async () => {
   const r = await handler(
     { rawPath: "/callback", requestContext: { http: { path: "/callback", method: "GET" } }, queryStringParameters: { code: "x", state: "nonexistent" } } as any,
@@ -184,6 +205,35 @@ test("EventBridge refresh: failure marks needs_reauth", async () => {
   assert.equal((r as any).failed, 1);
   const uf = JSON.parse(smStore.get("quick-dingtalk-mcp/users/uf")!);
   assert.equal(uf.needs_reauth, true);
+});
+
+test("EventBridge refresh: TRANSIENT failure (5xx/network) must NOT mark needs_reauth", async () => {
+  const now = Math.floor(Date.now() / 1000);
+  smStore.set("quick-dingtalk-mcp/users/ut5", JSON.stringify({ access_token: "x", refresh_token: "rt-ok", expires_at: now + 100, scope: "" }));
+  // DingTalk having a bad minute is not a revoked grant — the user must not be
+  // force-logged-out; next 30-min run retries with the same refresh_token.
+  fetchImpl = async () => new Response("upstream blew up", { status: 503 });
+  const r1 = await handler({ source: "aws.events" } as any, {} as any);
+  assert.equal((r1 as any).failed, 1);
+  let u = JSON.parse(smStore.get("quick-dingtalk-mcp/users/ut5")!);
+  assert.notEqual(u.needs_reauth, true, "5xx must not set needs_reauth");
+
+  // Network-level failure (fetch rejects) — same rule.
+  fetchImpl = async () => { throw new Error("ECONNRESET"); };
+  const r2 = await handler({ source: "aws.events" } as any, {} as any);
+  assert.equal((r2 as any).failed, 1);
+  u = JSON.parse(smStore.get("quick-dingtalk-mcp/users/ut5")!);
+  assert.notEqual(u.needs_reauth, true, "network error must not set needs_reauth");
+
+  // DingTalk recovers → refresh succeeds with the preserved refresh_token.
+  fetchImpl = async (url) => {
+    if (url.includes("oauth2/userAccessToken")) return new Response(JSON.stringify({ accessToken: "NEW", refreshToken: "RT-new", expiresIn: 7200, scope: "" }), { status: 200 });
+    return new Response("nope", { status: 404 });
+  };
+  const r3 = await handler({ source: "aws.events" } as any, {} as any);
+  assert.equal((r3 as any).refreshed, 1);
+  u = JSON.parse(smStore.get("quick-dingtalk-mcp/users/ut5")!);
+  assert.equal(u.access_token, "NEW");
 });
 
 test("E1: refresh 成功后保留 last_active(否则90天窗口失效)", async () => {
@@ -436,4 +486,99 @@ test("review#1: past-ttl code is rejected in code even if DynamoDB hasn't swept 
   }), {} as any);
   assert.equal((r as any).statusCode, 400);
   assert.equal(JSON.parse((r as any).body).error, "invalid_grant");
+});
+
+test("review#6: failed PKCE attempt burns the code — retry with correct verifier also fails", async () => {
+  const verifier = randomBytes(48).toString("base64url");
+  const challenge = createHash("sha256").update(verifier).digest("base64url");
+  const { clientId, cb } = await runAuthCodeFlow(challenge);
+  const code = new URL((cb as any).headers.location).searchParams.get("code")!;
+  const basic = Buffer.from(`${clientId}:x`).toString("base64");
+  // First attempt: wrong verifier → invalid_grant AND the code must be burned.
+  const bad = await handler(ev("POST", "/token", {
+    headers: { "content-type": "application/x-www-form-urlencoded", authorization: `Basic ${basic}` },
+    body: form({ grant_type: "authorization_code", code, redirect_uri: "https://quick.example.com/cb", code_verifier: "WRONG" }),
+  }), {} as any);
+  assert.equal((bad as any).statusCode, 400);
+  assert.ok(![...ddbStore.keys()].some((k) => k.startsWith("code#")), "code must be deleted on ANY redemption attempt");
+  // Second attempt with the CORRECT verifier must now fail (single-use).
+  const retry = await handler(ev("POST", "/token", {
+    headers: { "content-type": "application/x-www-form-urlencoded", authorization: `Basic ${basic}` },
+    body: form({ grant_type: "authorization_code", code, redirect_uri: "https://quick.example.com/cb", code_verifier: verifier }),
+  }), {} as any);
+  assert.equal((retry as any).statusCode, 400);
+  assert.equal(JSON.parse((retry as any).body).error, "invalid_grant");
+});
+
+test("review#7: expired OAuth session at /callback → 400 with NOTHING persisted (no user token, no code)", async () => {
+  const verifier = randomBytes(48).toString("base64url");
+  const challenge = createHash("sha256").update(verifier).digest("base64url");
+  const reg = await handler(ev("POST", "/register", {
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ redirect_uris: ["https://quick.example.com/cb"], token_endpoint_auth_method: "client_secret_basic" }),
+  }), {} as any);
+  const clientId = JSON.parse((reg as any).body).client_id as string;
+  await handler(ev("GET", "/authorize", {
+    qs: { client_id: clientId, redirect_uri: "https://quick.example.com/cb", response_type: "code", code_challenge: challenge, code_challenge_method: "S256" },
+  }), {} as any);
+  const dingState = [...ddbStore.keys()].find((k) => !k.includes("#"))!;
+  // Simulate slow consent: the sess# record expired and was swept.
+  const sessKey = [...ddbStore.keys()].find((k) => k.startsWith("sess#"))!;
+  ddbStore.delete(sessKey);
+  let dingTokenExchanged = false;
+  fetchImpl = async (url) => {
+    if (url.includes("oauth2/userAccessToken")) { dingTokenExchanged = true; return new Response(JSON.stringify({ accessToken: "AT", refreshToken: "RT", expiresIn: 7200, scope: "openid" }), { status: 200 }); }
+    if (url.includes("contact/users/me")) return new Response(JSON.stringify({ unionId: "uid-slow" }), { status: 200 });
+    return new Response("nope", { status: 404 });
+  };
+  const cb = await handler(ev("GET", "/callback", { qs: { code: "dc", state: dingState } }), {} as any);
+  assert.equal((cb as any).statusCode, 400);
+  assert.equal(smStore.size, 0, "DingTalk token must NOT be stored when the OAuth session is dead");
+  assert.equal(dingTokenExchanged, false, "DingTalk code must not even be exchanged");
+  assert.ok(![...ddbStore.keys()].some((k) => k.startsWith("code#")), "no mcp_code minted");
+});
+
+test("review#9: refresh_token denied + burned when user idle past 90-day window", async () => {
+  const verifier = randomBytes(48).toString("base64url");
+  const challenge = createHash("sha256").update(verifier).digest("base64url");
+  const { clientId, cb } = await runAuthCodeFlow(challenge);
+  const code = new URL((cb as any).headers.location).searchParams.get("code")!;
+  const basic = Buffer.from(`${clientId}:x`).toString("base64");
+  const first = await handler(ev("POST", "/token", {
+    headers: { "content-type": "application/x-www-form-urlencoded", authorization: `Basic ${basic}` },
+    body: form({ grant_type: "authorization_code", code, redirect_uri: "https://quick.example.com/cb", code_verifier: verifier }),
+  }), {} as any);
+  const rt = JSON.parse((first as any).body).refresh_token as string;
+  // Mark the user idle > 90 days (same field mcp-middleware checks).
+  const now = Math.floor(Date.now() / 1000);
+  const id = "quick-dingtalk-mcp/users/uid-oauth";
+  const ut = JSON.parse(smStore.get(id)!);
+  smStore.set(id, JSON.stringify({ ...ut, last_active: now - 91 * 86400 }));
+  const r = await handler(ev("POST", "/token", {
+    headers: { "content-type": "application/x-www-form-urlencoded", authorization: `Basic ${basic}` },
+    body: form({ grant_type: "refresh_token", refresh_token: rt }),
+  }), {} as any);
+  assert.equal((r as any).statusCode, 400);
+  assert.match(JSON.parse((r as any).body).error_description, /idle-expired/);
+  assert.ok(![...ddbStore.keys()].some((k) => k.startsWith("refresh#")), "refresh token must be burned");
+});
+
+test("incr-auth callback: consenting account ≠ session uid → 400, token NOT overwritten", async () => {
+  // Victim already has a stored token; an incr re-auth for victim is completed
+  // by a DIFFERENT DingTalk account — must be rejected, victim token untouched.
+  const now = Math.floor(Date.now() / 1000);
+  const victimId = "quick-dingtalk-mcp/users/victim-uid";
+  smStore.set(victimId, JSON.stringify({ access_token: "VICTIM-AT", refresh_token: "VICTIM-RT", expires_at: now + 7200, scope: "openid" }));
+  const incr = signIncrAuthToken({ userId: "victim-uid", scopes: [], expiresInSec: 600 }, SSM_KEY);
+  await handler(ev("GET", "/authorize", { qs: { t: incr } }), {} as any);
+  const dingState = [...ddbStore.keys()].find((k) => !k.includes("#"))!;
+  fetchImpl = async (url) => {
+    if (url.includes("oauth2/userAccessToken")) return new Response(JSON.stringify({ accessToken: "OTHER-AT", refreshToken: "OTHER-RT", expiresIn: 7200, scope: "openid" }), { status: 200 });
+    if (url.includes("contact/users/me")) return new Response(JSON.stringify({ unionId: "someone-else" }), { status: 200 });
+    return new Response("nope", { status: 404 });
+  };
+  const cb = await handler(ev("GET", "/callback", { qs: { code: "dc", state: dingState } }), {} as any);
+  assert.equal((cb as any).statusCode, 400);
+  const stored = JSON.parse(smStore.get(victimId)!);
+  assert.equal(stored.access_token, "VICTIM-AT", "victim's token must not be overwritten by another account's consent");
 });
