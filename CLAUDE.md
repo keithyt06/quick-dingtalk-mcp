@@ -54,8 +54,9 @@ npm workspaces (`packages/*`), `"type": "module"`, Node ≥ 20 (remote needs ≥
 - **`config/`** — shared, non-secret config consumed by both deploy scripts and CDK:
   `alarm-presets.json`, `alarm-thresholds.json` (standard/relaxed/strict), `i18n.json`
   (zh/en strings), `oauth-scopes.json`.
-- **`docs/`** — remote operations/security/observability/cost/FAQ, plus
-  `docs/superpowers/{plans,specs,notes}` (design history; e.g. the OAuth field audit).
+- **`docs/`** — remote deploy/operations/security/observability/cost/FAQ (index in
+  `docs/README.md`), plus `docs/superpowers/notes/` (still-relevant field-test records,
+  e.g. the OAuth field audit and the code-review backlog).
 
 ## Commands
 

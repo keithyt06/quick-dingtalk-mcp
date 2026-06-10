@@ -14,6 +14,7 @@
 
 | 文档 | 内容 |
 |---|---|
+| [remote-deploy.md](./remote-deploy.md) | **AWS 部署指南**：前置条件、首次两段式部署、更新部署（⚠️ 与首次不同）、冒烟验证、卸载 |
 | [remote-quick-desktop.md](./remote-quick-desktop.md) | 技术版接入参考：两种接入方式细节、故障排查矩阵、`quick` 客户端预注册 |
 | [remote-operations.md](./remote-operations.md) | 日常运维：`ops.sh`、升级 dws、撤销用户、灾备、alarm preset |
 | [remote-security.md](./remote-security.md) | 安全模型：信任边界、token 体系、PKCE/防重放、STRIDE、已知薄弱项 |
@@ -30,4 +31,4 @@
 | `assets/token-lifecycle.svg` | 三层 token 生命周期 | remote-quick-desktop |
 | `assets/request-chain-errors.svg` | 请求链路与各错误码出处 | remote-quick-desktop |
 
-> `superpowers/` 是设计历史（plans/specs/notes），仅供考古，不保证与现状一致。
+> `superpowers/notes/` 是仍有参考价值的实测记录（OAuth 字段核对、code review backlog），不保证与现状一致。
