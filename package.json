@@ -11,7 +11,7 @@
   ],
   "scripts": {
     "build:catalog": "node packages/shared/generate-catalog.mjs",
-    "test": "node --test packages/shared/__tests__",
+    "test": "node --test packages/shared/__tests__/*.test.mjs",
     "test:remote": "npm --workspace packages/remote test",
     "test:all": "npm test && npm run test:remote",
     "smoke": "bash packages/local/scripts/smoke.sh",

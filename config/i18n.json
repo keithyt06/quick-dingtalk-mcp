@@ -83,8 +83,8 @@
       "en": "Will destroy all stacks (RuntimeStack -> OAuthStack -> WAFStack). Continue? (y/N):"
     },
     "preserved_secrets_note": {
-      "zh": "Secrets Manager 用户 token (按 7 天恢复期保留) 和 ECR 镜像不会自动删。手动清理: aws secretsmanager delete-secret --force-delete-without-recovery / aws ecr delete-repository --force",
-      "en": "User-token Secrets Manager entries (kept under 7-day recovery window) and ECR images are NOT auto-deleted. Manual cleanup: aws secretsmanager delete-secret --force-delete-without-recovery / aws ecr delete-repository --force"
+      "zh": "Secrets Manager 用户 token (按默认 30 天恢复期保留)、AgentCore Runtime 本体和容器镜像不会自动删。手动清理: aws secretsmanager delete-secret --force-delete-without-recovery / aws bedrock-agentcore-control delete-agent-runtime",
+      "en": "User-token Secrets Manager entries (kept under the default 30-day recovery window), the AgentCore Runtime itself, and container images are NOT auto-deleted. Manual cleanup: aws secretsmanager delete-secret --force-delete-without-recovery / aws bedrock-agentcore-control delete-agent-runtime"
     }
   },
   "alarm_card": {

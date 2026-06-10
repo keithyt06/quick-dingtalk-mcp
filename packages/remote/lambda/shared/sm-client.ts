@@ -74,7 +74,7 @@ export async function putUserToken(userId: string, token: UserToken): Promise<vo
 export async function deleteUserToken(userId: string): Promise<void> {
   await client.send(wrap("DeleteSecretCommand", {
     SecretId: secretIdFor(userId),
-    ForceDeleteWithoutRecovery: false, // 7-day recovery window; ops.sh teardown can override
+    ForceDeleteWithoutRecovery: false, // AWS default 30-day recovery window (no RecoveryWindowInDays); teardown can force-delete
   }));
 }
 
