@@ -123,7 +123,7 @@ echo "$(pwd)/packages/local/server.mjs"     # server 入口
                                                    钉钉（以该成员身份发出）
 ```
 
-每个成员的钉钉 token 按 `userId` 分别用 KMS 加密存在 Secrets Manager；容器给每个用户一份隔离的 `dws` 配置。钉钉 token 由定时任务自动续期；你粘进客户端的 MCP token **只要在用就一直有效**——后端按用户记录活跃窗口（连续 90 天不用才需重新授权），所以一次配置长期可用。
+每个成员的钉钉 token 按 `userId` 分别用 KMS 加密存在 Secrets Manager；容器给每个用户一份隔离的 `dws` 配置。钉钉 token 由定时任务自动续期；你的连接**只要在用就一直有效**——后端按用户记录活跃窗口（连续 90 天不用才需重新授权），所以一次配置长期可用。
 
 ### 管理员：部署一次
 
@@ -138,15 +138,39 @@ curl -fsSL https://raw.githubusercontent.com/keithyt06/quick-dingtalk-mcp/main/p
 
 > 前置：一个钉钉应用（AppKey/AppSecret），并把 `<域名>/callback` 注册为其重定向 URL；`us-east-1` 的 AWS 凭证；Docker；Node ≥ 22.6。详见 [docs/remote-operations.md](./docs/remote-operations.md)。
 
-### 成员：接入 Amazon Quick Desktop
+### 成员：接入你的 MCP 客户端
 
-网关本身就是一个标准 **OAuth 2.1 Authorization Server**（PKCE + RFC 8414/9728/7591 发现），所以有两条接入路径：
+网关本身就是一个标准 **OAuth 2.1 Authorization Server**，所以客户端有两种接入模式。**两者的区别只在「你的客户端怎么拿到凭证」**——底层都打到同一个后端（容器里以*你本人*的钉钉身份跑 `dws`），连上之后行为完全一样。按你的客户端支持哪种来选：
 
-**推荐 —— OAuth 向导（免复制 token）**：在 Quick 的 **Connectors → Add connector → MCP**（不要走 Settings → MCP）里选 **User authentication**，填 `MCP endpoint = https://<域名>/mcp`、`Authorization URL = https://<域名>/authorize`、`Token URL = https://<域名>/token`、`Scope = openid`、`Client ID = quick`、`Client Secret = placeholder`（任意非空——网关用 PKCE 鉴权，不校验 secret）。Quick 随后弹出登录按钮，你用*自己的*钉钉账号授权，它就自动接好 token。access token 短期有效、Quick **自动用 refresh_token 续期**——你授权一次，再也不用碰 token。*（`Client ID` 必须正好填 `quick`——Quick 表单强制要 Client ID 且不跑动态注册，所以网关预置了一个固定的 `quick` 客户端；管理员准备见[新人首配文档](./docs/remote-新人首配-oauth.md)。另：三个 URL 的域名要逐字核对一致，打错一个字母授权页就打不开。）*
+| | **模式 A —— OAuth 向导** *(推荐)* | **模式 B —— 手动复制 Bearer** *(备用)* |
+|---|---|---|
+| 何时用 | 客户端有 OAuth 登录（Amazon Quick 有） | 客户端只能填固定请求头 |
+| 你要做什么 | 填几个 URL，点一次**同意** | 打开一个网址，把 `Bearer` 复制进请求头 |
+| token 维护 | 客户端**自动续期**——再也不用碰 token | 复制一次；在用就有效（连续 90 天不用才需重授权） |
+| 实测 | ✅ Amazon Quick，2026-06-10 | ✅ 2026-06-01 |
 
-**fallback —— 手动复制 Bearer**：host 不支持 OAuth 向导时，浏览器打开 `https://<域名>/authorize`，用你自己的钉钉账号同意，把返回的 `Bearer ...` 复制进连接器的 `Authorization` header（`Connection type: Remote / HTTP`、`streamable-http`、`URL = https://<域名>/mcp`）。只要在用就长期有效（连续 90 天不用才需重新授权）。
+#### 模式 A —— OAuth 向导（推荐）
 
-随后**验证** —— 说一句*"用 dingtalk 查一下我自己的资料"*，它会返回你真实的企业/部门信息。你完全不需要碰钉钉开放平台——应用是管理员建的，你只是用自己的账号授权。
+在 Amazon Quick 里：**Connectors → Add connector → MCP**（不要走 Settings → MCP），认证方式选 **User authentication**，填：
+
+| 字段 | 值 |
+|---|---|
+| MCP endpoint | `https://<域名>/mcp` |
+| Authorization URL | `https://<域名>/authorize` |
+| Token URL | `https://<域名>/token` |
+| Client ID | `quick` |
+| Client Secret | `placeholder` *(任意非空)* |
+| Scope | `openid` |
+
+保存 → Quick 弹出登录按钮 → 用**你自己的**钉钉账号点同意 → 自动接好 token 并显示 38 个工具。授权一次，之后 Quick 自动续期。
+
+> `Client ID` 必须正好填 `quick`——网关预置了这个客户端（Quick 表单强制要 ID 且不跑动态注册 DCR）。secret 不校验（鉴权用 PKCE）。务必确认**三个 URL 的域名逐字一致**——打错一个字母授权页就打不开。
+
+#### 模式 B —— 手动复制 Bearer（备用）
+
+客户端没有 OAuth 向导时：浏览器打开 `https://<域名>/authorize`，用你的钉钉账号同意，复制返回的 `Bearer …`。在客户端里设 `Connection type: Remote / HTTP`、`transport: streamable-http`、`URL = https://<域名>/mcp`，请求头填 `Authorization: Bearer <复制的那串>`。
+
+**随后验证**（两种模式通用）：说一句*"用 dingtalk 查一下我自己的资料"*，返回你真实的企业/部门信息即成功。你完全不需要碰钉钉开放平台——应用是管理员建的，你只是用自己的账号授权。
 
 一步步接入（推荐 OAuth 路径，面向新人）→ **[docs/remote-新人首配-oauth.md](./docs/remote-新人首配-oauth.md)** · 技术参考（传输协议、故障排查矩阵、管理员准备）→ [docs/remote-quick-desktop.md](./docs/remote-quick-desktop.md)
 

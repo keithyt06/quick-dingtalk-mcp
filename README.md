@@ -123,7 +123,7 @@ authorizes once  ──→  (MCP host, HTTPS + Bearer) ──→ CloudFront → 
                                                        DingTalk  (authored by that teammate)
 ```
 
-Each teammate's DingTalk token is stored, KMS-encrypted, per `userId` in Secrets Manager; the container gives each user an isolated `dws` config. Tokens auto-refresh on a schedule, and the MCP token you paste into your client stays valid as long as you keep using it — the backend tracks a per-user activity window (90 days idle before re-auth is needed), so a one-time setup just keeps working.
+Each teammate's DingTalk token is stored, KMS-encrypted, per `userId` in Secrets Manager; the container gives each user an isolated `dws` config. DingTalk tokens auto-refresh on a schedule, and your connection stays valid as long as you keep using it — the backend tracks a per-user activity window (90 days idle before re-auth is needed), so a one-time setup just keeps working.
 
 ### Admin: deploy once
 
@@ -138,15 +138,39 @@ curl -fsSL https://raw.githubusercontent.com/keithyt06/quick-dingtalk-mcp/main/p
 
 > Prereqs: a DingTalk app (AppKey/AppSecret) with `<domain>/callback` registered as its redirect URL, AWS creds for `us-east-1`, Docker, and Node ≥ 22.6. See [docs/remote-operations.md](./docs/remote-operations.md).
 
-### Teammate: connect Amazon Quick Desktop
+### Teammate: connect your MCP client
 
-The gateway is a standard **OAuth 2.1 Authorization Server** (PKCE + RFC 8414/9728/7591 discovery), so there are two ways in:
+The gateway is a standard **OAuth 2.1 Authorization Server**, so your client can connect in one of two modes. **They differ only in how your client obtains the credential** — both reach the same backend (which runs `dws` under *your* DingTalk identity) and behave identically once connected. Pick by what your client supports:
 
-**Recommended — OAuth wizard (no token copying):** in Quick, add the server under **Connectors → Add connector → MCP** (not Settings → MCP) and choose **User authentication**. Fill `MCP endpoint = https://<domain>/mcp`, `Authorization URL = https://<domain>/authorize`, `Token URL = https://<domain>/token`, `Scope = openid`, `Client ID = quick`, `Client Secret = placeholder` (any non-empty value — PKCE is what's checked, the secret isn't). Quick then pops a login button, you approve with *your* DingTalk account, and it wires up the token automatically. Access tokens are short-lived and Quick **auto-refreshes** them — you authorize once and never touch a token. *(`Client ID` must be exactly `quick` — Quick's form requires a Client ID and does not run dynamic client registration, so the gateway pre-registers a fixed `quick` client; admin setup in the [first-time doc](./docs/remote-新人首配-oauth.md). Double-check the domain matches in all three URLs — a single mistyped character breaks the authorize page.)*
+| | **Mode A — OAuth wizard** *(recommended)* | **Mode B — manual Bearer** *(fallback)* |
+|---|---|---|
+| Use when | your client has an OAuth login (Amazon Quick does) | your client only lets you set a fixed header |
+| What you do | fill a few URLs, click **Approve** once | open a URL, copy a `Bearer` token into a header |
+| Token upkeep | client **auto-refreshes** — you never touch a token | paste once; stays valid while in use (re-auth after 90 days idle) |
+| Verified | ✅ Amazon Quick, 2026-06-10 | ✅ 2026-06-01 |
 
-**Fallback — manual Bearer:** for hosts without an OAuth wizard, open `https://<domain>/authorize` in a browser, approve with your DingTalk account, copy the `Bearer ...` it returns into the connector's `Authorization` header (`Connection type: Remote / HTTP`, `streamable-http`, `URL = https://<domain>/mcp`). Valid long-term as long as you keep using it (re-auth only after 90 days idle).
+#### Mode A — OAuth wizard (recommended)
 
-Then **verify** — say *"use dingtalk to look up my own profile"*; it returns your real org/department. You never touch the DingTalk developer console — the app is the admin's; you just authorize with your account.
+In Amazon Quick: **Connectors → Add connector → MCP** (not Settings → MCP), choose **User authentication**, and fill:
+
+| Field | Value |
+|---|---|
+| MCP endpoint | `https://<domain>/mcp` |
+| Authorization URL | `https://<domain>/authorize` |
+| Token URL | `https://<domain>/token` |
+| Client ID | `quick` |
+| Client Secret | `placeholder` *(any non-empty value)* |
+| Scope | `openid` |
+
+Save → Quick pops a login button → approve with **your** DingTalk account → it wires up the token and shows 38 tools. You authorize once; Quick auto-refreshes the token from then on.
+
+> `Client ID` must be exactly `quick` — the gateway pre-registers this client (Quick's form requires an ID and doesn't self-register via DCR). The secret isn't checked (PKCE is). Make sure the domain is **identical in all three URLs** — one mistyped character breaks the login page.
+
+#### Mode B — manual Bearer (fallback)
+
+For clients without an OAuth wizard: open `https://<domain>/authorize` in a browser, approve with your DingTalk account, and copy the `Bearer …` it returns. In your client set `Connection type: Remote / HTTP`, `transport: streamable-http`, `URL = https://<domain>/mcp`, and header `Authorization: Bearer <that value>`.
+
+**Then verify** (either mode): ask *"use dingtalk to look up my own profile"* — it returns your real org/department. You never touch the DingTalk developer console; the app is the admin's, you just authorize with your own account.
 
 Step-by-step onboarding (recommended OAuth path, beginner-friendly) → **[docs/remote-新人首配-oauth.md](./docs/remote-新人首配-oauth.md)** · technical reference (transport, troubleshooting matrix, admin setup) → [docs/remote-quick-desktop.md](./docs/remote-quick-desktop.md)
 
