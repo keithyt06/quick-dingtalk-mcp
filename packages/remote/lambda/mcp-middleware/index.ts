@@ -8,7 +8,13 @@ import { getUserToken, putUserToken, type UserToken } from "../shared/sm-client.
 
 const REGION = process.env.AWS_REGION || "us-east-1";
 const HMAC_KEY_PARAM = process.env.HMAC_KEY_PARAM!;
-const AGENTCORE_RUNTIME_URL = process.env.AGENTCORE_RUNTIME_URL!;
+// Invoke-URL resolution: AGENTCORE_RUNTIME_URL (explicit override; tests use it)
+// wins. Otherwise the runtime ARN is read from the SSM parameter that
+// RuntimeStack publishes, and the URL is built by runtimeUrlFromArn — the ARN
+// can't be URL-encoded inside a CloudFormation template, so the encoding has
+// to happen here at runtime.
+const RUNTIME_URL_OVERRIDE = process.env.AGENTCORE_RUNTIME_URL || "";
+const RUNTIME_ARN_PARAM = process.env.AGENTCORE_RUNTIME_ARN_PARAM || "";
 const AGENTCORE_SERVICE = "bedrock-agentcore";
 const TIMEOUT_MS = parseInt(process.env.UPSTREAM_TIMEOUT_MS || "25000", 10);
 const TOKEN_NEAR_EXPIRY_SEC = 60; // if expires_at - now < 60s, return 503
@@ -29,6 +35,7 @@ export function _setClients(c: {
   if (c.ssm) ssm = c.ssm;
   if (c.credsProvider) credsProvider = c.credsProvider;
   cachedHmacKey = null;
+  cachedRuntimeUrl = null;
 }
 
 let cachedHmacKey: string | null = null;
@@ -38,6 +45,21 @@ async function getHmacKey(): Promise<string> {
   const r = await ssm.send(new GetParameterCommand({ Name: HMAC_KEY_PARAM, WithDecryption: true }));
   cachedHmacKey = r.Parameter!.Value!;
   return cachedHmacKey;
+}
+
+export function runtimeUrlFromArn(arn: string, region: string): string {
+  return `https://bedrock-agentcore.${region}.amazonaws.com/runtimes/${encodeURIComponent(arn)}/invocations?qualifier=DEFAULT`;
+}
+
+let cachedRuntimeUrl: string | null = null;
+
+async function getRuntimeUrl(): Promise<string> {
+  if (RUNTIME_URL_OVERRIDE) return RUNTIME_URL_OVERRIDE;
+  if (cachedRuntimeUrl) return cachedRuntimeUrl;
+  if (!RUNTIME_ARN_PARAM) throw new Error("neither AGENTCORE_RUNTIME_URL nor AGENTCORE_RUNTIME_ARN_PARAM is set");
+  const r = await ssm.send(new GetParameterCommand({ Name: RUNTIME_ARN_PARAM }));
+  cachedRuntimeUrl = runtimeUrlFromArn(r.Parameter!.Value!, REGION);
+  return cachedRuntimeUrl;
 }
 
 function unauth(reason: string, hint?: string): APIGatewayProxyResultV2 {
@@ -130,12 +152,19 @@ export const handler = async (
   }, hmacKey);
 
   // Sign request to AgentCore Runtime
+  let runtimeUrl: string;
+  try {
+    runtimeUrl = await getRuntimeUrl();
+  } catch (e: any) {
+    log.error("runtime url unresolved", { err: e.message });
+    return { statusCode: 500, body: JSON.stringify({ error: "runtime-url-unresolved" }) };
+  }
   const creds = await credsProvider();
   let signed;
   try {
     signed = await signRequest({
       method: "POST",
-      url: AGENTCORE_RUNTIME_URL,
+      url: runtimeUrl,
       headers: {
         "content-type": "application/json",
         "x-user-id": userId,

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { App } from "aws-cdk-lib";
-import { Template } from "aws-cdk-lib/assertions";
+import { Template, Match } from "aws-cdk-lib/assertions";
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -77,4 +77,28 @@ test("WafStack synthesizes a CLOUDFRONT-scope WebACL", () => {
 test("WafStack rejects non-us-east-1 region", () => {
   const app = new App();
   assert.throws(() => new WafStack(app, "TestWaf", { env: { account: "111122223333", region: "us-west-2" } }), /us-east-1/);
+});
+
+test("OAuthStack is region-agnostic: synthesizes in eu-central-1 with runtime-ARN param env", () => {
+  const app = new App();
+  const stack = new OAuthStack(app, "TestOAuthRegion", {
+    env: { account: "111122223333", region: "eu-central-1" },
+    alarmPreset: "standard",
+    alarmWebhookUrl: "",
+    alarmThresholds,
+    i18n,
+    dingtalkAppId: "fake",
+  });
+  const t = Template.fromStack(stack);
+  // middleware resolves the AgentCore invoke URL from this SSM parameter at
+  // cold start (written by RuntimeStack) — no REPLACE_AT_DEPLOY env patching.
+  t.hasResourceProperties("AWS::Lambda::Function", {
+    Environment: Match.objectLike({
+      Variables: Match.objectLike({
+        AGENTCORE_RUNTIME_ARN_PARAM: "/qdm-remote/agentcore-runtime-arn",
+      }),
+    }),
+  });
+  const tpl = JSON.stringify(t.toJSON());
+  assert.ok(!tpl.includes("REPLACE_AT_DEPLOY\",\"UPSTREAM"), "no stale runtime-url placeholder");
 });

@@ -126,11 +126,18 @@ export class OAuthStack extends Stack {
       timeout: Duration.seconds(28),
       environment: {
         ...lambdaCommonEnv,
-        AGENTCORE_RUNTIME_URL: "REPLACE_AT_DEPLOY", // updated post-RuntimeStack
+        // Written by RuntimeStack (ssm.StringParameter over the CfnRuntime ARN).
+        // mcp-middleware reads the ARN at cold start and builds the invoke URL —
+        // no post-deploy env patching, no cross-stack circular dependency.
+        AGENTCORE_RUNTIME_ARN_PARAM: "/qdm-remote/agentcore-runtime-arn",
         UPSTREAM_TIMEOUT_MS: "25000",
       },
     });
     hmacKey.grantRead(this.mcpMiddleware);
+    this.mcpMiddleware.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["ssm:GetParameter"],
+      resources: [`arn:aws:ssm:${this.region}:${this.account}:parameter/qdm-remote/agentcore-runtime-arn`],
+    }));
     this.mcpMiddleware.addToRolePolicy(new iam.PolicyStatement({
       // GetSecretValue: 读用户 token。PutSecretValue: 节流回写 last_active(90 天
       // 活跃窗口判定依赖它,spec §4.1/4.2)。用户 secret 在 /callback 已创建,

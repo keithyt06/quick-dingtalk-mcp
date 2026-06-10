@@ -4,24 +4,37 @@
 
 ## 架构与资源清单
 
-一次部署创建(全部固定在 **us-east-1**,因 AgentCore + CloudFront-scope WAF):
+**整套部署就是 3 个 CDK 栈 + 少量栈外数据**——AgentCore Runtime 本体也是 CFN 资源(`AWS::BedrockAgentCore::Runtime`),`cdk deploy/destroy` 全覆盖:
 
 | 资源 | 创建方式 | 归属 |
 |---|---|---|
 | CloudFront + API Gateway + 3 个 Lambda(mcp-middleware / token-refresh-shim / alarm-webhook)+ DynamoDB(OAuthStateTable)+ SNS + 10 个 Alarm + Dashboard | CDK | `QdmRemoteOAuth` 栈 |
-| 容器镜像(ARM64,内含 dws)+ Runtime IAM 角色 | CDK(`DockerImageAsset`,镜像推到 CDK bootstrap 共享 ECR) | `QdmRemoteRuntime` 栈 |
-| WAF WebACL(可选) | CDK | `QdmRemoteWaf` 栈 |
-| **AgentCore Runtime 本体** | deploy.sh 内嵌 boto3(`bedrock-agentcore-control`,**无 CFN 资源类型**) | 不在任何栈里 |
-| SSM 参数 ×2(HMAC 主密钥、钉钉 AppSecret,SecureString) | deploy.sh 后置步骤 | 栈外 |
+| 容器镜像(ARM64,内含 dws)+ Runtime IAM 角色 + **AgentCore Runtime 本体** + SSM 参数 `/qdm-remote/agentcore-runtime-arn`(middleware 据此自行拼 invoke URL) | CDK | `QdmRemoteRuntime` 栈 |
+| WAF WebACL(可选,**恒在 us-east-1**) | CDK | `QdmRemoteWaf` 栈 |
+| SSM 参数 ×2(HMAC 主密钥、钉钉 AppSecret,SecureString 真值) | deploy.sh 幂等写入 | 栈外 |
 | DDB 记录 `client#quick`(Quick 向导预注册客户端) | deploy.sh 幂等 upsert | 栈外 |
 | 用户 token secrets(`quick-dingtalk-mcp/users/<uid>`) | Lambda 运行时按需创建 | 栈外 |
 
-> 「不在栈里」的资源意味着 `cdk destroy` 不会删它们——卸载时见文末。
+> 「栈外」的资源 `cdk destroy` 不会删——卸载时见文末。
+
+## 选择部署 region
+
+默认 `us-east-1`,用环境变量切换,deploy.sh / ops.sh / teardown.sh 全部跟随:
+
+```bash
+AWS_REGION=eu-central-1 bash packages/remote/scripts/deploy.sh
+```
+
+三个注意点:
+
+- **AgentCore 可用性**:所选 region 必须有 Bedrock AgentCore Runtime(已确认可用:us-east-1 / us-west-2 / ap-southeast-1 / eu-central-1 / ap-northeast-1 / eu-west-1;其他 region 先 `aws bedrock-agentcore-control list-agent-runtimes --region <r>` 验证不报错)。
+- **WAF 栈例外**:CloudFront-scope WebACL 是 AWS 硬约束,`QdmRemoteWaf` 永远部署到 us-east-1(代码里写死,开 WAF 时账号需在 us-east-1 也做过 bootstrap)。
+- **回调与文档**:钉钉回调注册的是 CloudFront 域名,与 region 无关;`QUICK_REDIRECT_URIS` 的 QuickSight 回调域取决于你的 Quick 账号所在 region,不是部署 region。
 
 ## 前置条件
 
-- **AWS**:具备 `us-east-1` 管理员权限的凭证;账号已做过 CDK bootstrap(没做过则先 `npx cdk bootstrap aws://<account>/us-east-1`)。
-- **本机**:Node ≥ 22.6、Docker(构建 ARM64 镜像,需 buildx)、AWS CLI、git、jq、python3 + boto3(≥1.39,需含 `bedrock-agentcore-control`;系统 boto3 过旧时建议独立 venv)。
+- **AWS**:目标 region 的管理员权限凭证;账号在该 region 做过 CDK bootstrap(没做过则先 `npx cdk bootstrap aws://<account>/<region>`)。
+- **本机**:Node ≥ 22.6、Docker(构建 ARM64 镜像,需 buildx)、AWS CLI、git、jq。(不再需要 python3/boto3——Runtime 已是 CFN 资源。)
 - **钉钉应用**:在 [钉钉开放平台](https://open.dingtalk.com/) 建一个企业内部应用,拿到 **AppKey/AppSecret**,并开通网页应用的登录权限(scope `openid corpid`)。回调地址要填 CloudFront 域名——首次部署前还没有,见下面的两段式流程。
 
 ## 首次部署(两段式,解决鸡生蛋)
@@ -47,7 +60,7 @@ bash packages/remote/scripts/deploy.sh --only-oauth
    bash packages/remote/scripts/deploy.sh
    ```
 
-deploy.sh 全量模式依次做:部署 OAuthStack → 首次生成 HMAC 主密钥、写入 AppSecret 到 SSM(均幂等,重跑不覆盖,见下文「更新部署」)→ 幂等 upsert `client#quick`(回调白名单默认 us-east-1 QuickSight,可用 `QUICK_REDIRECT_URIS=<逗号分隔>` 覆盖)→ 部署 RuntimeStack(本地构建 ARM64 镜像并推 ECR)→ boto3 创建/更新 AgentCore Runtime(`PORT=8080`、`INJECT_STRATEGY=d2`、自定义请求头白名单)→ 把 Runtime 的 invoke URL 回填进 mcp-middleware 的 `AGENTCORE_RUNTIME_URL` 环境变量 → 打印授权 URL 和 MCP 端点。
+deploy.sh 全量模式依次做:部署 OAuthStack → 首次生成 HMAC 主密钥、写入 AppSecret 到 SSM(均幂等,重跑不覆盖,见下文「更新部署」)→ 幂等 upsert `client#quick`(回调白名单默认 us-east-1 QuickSight,可用 `QUICK_REDIRECT_URIS=<逗号分隔>` 覆盖)→ 部署 RuntimeStack(构建 ARM64 镜像推 ECR + 创建 AgentCore Runtime 本体 + 发布 runtime-arn SSM 参数,全在 CFN 内)→ 打印授权 URL 和 MCP 端点。
 
 结束后把打印的 **授权 URL**(`https://<域名>/authorize`)和 **MCP 端点**(`https://<域名>/mcp`)发给团队成员,成员自助接入见 [remote-新人首配-oauth.md](./remote-新人首配-oauth.md)。
 
@@ -68,9 +81,24 @@ bash packages/remote/scripts/deploy.sh
     bash packages/remote/scripts/deploy.sh
   ```
 
-- `client#quick` 预注册是幂等 upsert;镜像重建、AgentCore Runtime 更新(`PORT=8080`、请求头白名单)、mcp-middleware 的 invoke URL 回填,deploy.sh 全部自动处理。
+- `client#quick` 预注册是幂等 upsert;镜像重建、AgentCore Runtime 更新都是 CFN 就地变更。
 
-只改了 Lambda 想跳过镜像构建提速?可以单独 `cd packages/remote && npm run build:lambda && cd infra && AWS_REGION=us-east-1 npx cdk deploy QdmRemoteOAuth -c dingtalkAppId=<AppKey> -c alarmPreset=standard -c alarmWebhookUrl="" --require-approval never`——CFN 就地更新,不碰 SSM 与用户。但拿不准就重跑 deploy.sh,不会更糟。
+### 不用 deploy.sh,纯 CDK 部署(IaC 流水线)
+
+三个栈都是标准 CDK,可直接进 CI/CD:
+
+```bash
+cd packages/remote && npm install && npm run build:lambda
+cd infra
+npx cdk deploy QdmRemoteOAuth QdmRemoteRuntime \
+  -c dingtalkAppId=<AppKey> -c oauthBaseUrl=https://<CloudFront域名> \
+  -c alarmPreset=standard -c alarmWebhookUrl="" --require-approval never
+# 可选 WAF:加 -c enableWaf=true 并 deploy QdmRemoteWaf
+```
+
+deploy.sh 相对纯 CDK 只多三件事(首次各做一次即可,之后纯 CDK 更新完全够用):① 生成 HMAC 主密钥 + 写 AppSecret 到 SSM(SecureString);② upsert `client#quick`;③ 首段 `--only-oauth` 时把域名喂给 `oauthBaseUrl`。这三步都有幂等命令可手动执行,见 deploy.sh 对应小节。
+
+只改了 Lambda 想跳过镜像构建提速?单独 `npx cdk deploy QdmRemoteOAuth ...`(同上参数)即可——不碰 SSM 与用户。但拿不准就重跑 deploy.sh,不会更糟。
 
 ### 部署前自检
 
@@ -92,7 +120,7 @@ curl -s -D - -o /dev/null -X POST $B/mcp -H 'content-type: application/json' \
 #   → 401 + WWW-Authenticate: Bearer resource_metadata=...(Quick 自动授权发现依赖这个头)
 ```
 
-容器侧:`aws logs tail /aws/bedrock-agentcore/runtimes/<runtime-id>-DEFAULT --region us-east-1 --since 10m` 应看到 `listening on :8080`。最后用一个真实账号走完 [新人首配](./remote-新人首配-oauth.md) 调一次 `get_self`,端到端确认。
+容器侧:`aws logs tail /aws/bedrock-agentcore/runtimes/<runtime-id>-DEFAULT --region <region> --since 10m` 应看到 `listening on :8080`。最后用一个真实账号走完 [新人首配](./remote-新人首配-oauth.md) 调一次 `get_self`,端到端确认。
 
 ## 卸载
 
@@ -100,4 +128,6 @@ curl -s -D - -o /dev/null -X POST $B/mcp -H 'content-type: application/json' \
 bash packages/remote/scripts/teardown.sh
 ```
 
-按 Runtime → OAuth → WAF 的顺序 destroy 三个栈。**栈外资源需手动清理**:AgentCore Runtime 本体(`aws bedrock-agentcore-control delete-agent-runtime`)、用户 token secrets(默认 30 天恢复期,`delete-secret --force-delete-without-recovery` 立即删)、SSM 两个参数、CDK bootstrap ECR 里的镜像(**不要删整个 repo**,它被账号内其他 CDK 应用共享)。OAuthStateTable 是 `RETAIN`,destroy 后表保留,确认不要后手动删。
+按 WAF → Runtime → OAuth 的顺序 destroy 三个栈(AgentCore Runtime 本体随 `QdmRemoteRuntime` 栈一起删除)。**栈外资源需手动清理**:用户 token secrets(默认 30 天恢复期,`delete-secret --force-delete-without-recovery` 立即删)、SSM 两个密钥参数、CDK bootstrap ECR 里的镜像(**不要删整个 repo**,它被账号内其他 CDK 应用共享)。OAuthStateTable 是 `RETAIN`,destroy 后表保留,确认不要后手动删。
+
+> **从旧版(boto3 建 Runtime)迁移**:2026-06-10 前部署的环境,AgentCore Runtime 是 deploy.sh 用 boto3 建的、不归 CFN 管。升级到 CFN 管理需一次性迁移:先 `aws bedrock-agentcore-control delete-agent-runtime --agent-runtime-id <旧id>` 删旧 Runtime,再依次 `cdk deploy QdmRemoteRuntime`(CFN 重建同名 Runtime + 写 SSM 参数)、`cdk deploy QdmRemoteOAuth`(middleware 切换到 SSM 参数寻址)。期间 `/mcp` 中断约 5 分钟;用户 token/授权完全不受影响。

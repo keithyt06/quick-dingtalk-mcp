@@ -89,5 +89,7 @@ npm run remote:build:image
   responses, never invented scope strings.
 - **Shared changes ripple to both servers.** A change in `packages/shared` affects local
   *and* remote — run `npm run test:all` before assuming it's safe.
-- **Remote is `us-east-1`-locked** (AgentCore + CloudFront-scope WAF). The deploy region
-  is fixed; don't parameterize it away.
+- **Remote region is selectable** via `AWS_REGION`/`CDK_DEFAULT_REGION` (default
+  `us-east-1`; AgentCore must be available in the chosen region). The one hard lock:
+  the optional WAF stack always deploys to `us-east-1` (CloudFront-scope WebACL is an
+  AWS constraint) — keep that pin.

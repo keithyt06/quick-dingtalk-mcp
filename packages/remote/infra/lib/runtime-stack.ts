@@ -2,6 +2,8 @@ import { Stack, StackProps, CfnOutput } from "aws-cdk-lib";
 import { Construct } from "constructs";
 import * as ecr_assets from "aws-cdk-lib/aws-ecr-assets";
 import * as iam from "aws-cdk-lib/aws-iam";
+import * as agentcore from "aws-cdk-lib/aws-bedrockagentcore";
+import * as ssm from "aws-cdk-lib/aws-ssm";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -12,15 +14,14 @@ export interface RuntimeStackProps extends StackProps {
   userTokenSecretArnPrefix: string;
 }
 
-// RuntimeStack: ECR image + IAM role for AgentCore Runtime.
+// RuntimeStack: ECR image + IAM role + the AgentCore Runtime itself
+// (AWS::BedrockAgentCore::Runtime — the CFN resource type that didn't exist
+// when this project started; the boto3 create-agent-runtime side-channel in
+// deploy.sh is gone).
 //
-// IMPORTANT: AWS::BedrockAgentCore::AgentRuntime CloudFormation resource type
-// does NOT exist (as of 2026-05). The AgentCore Runtime itself must be created
-// via boto3 / aws-cli `bedrock-agentcore-control:create-agent-runtime` post-CDK.
-// See packages/remote/scripts/deploy.sh — it reads CFN outputs ImageUri +
-// RuntimeRoleArn from this stack, then calls boto3 to create the runtime.
-//
-// Reference pattern: ddpie/lark-mcp-on-agentcore uses the same split.
+// The runtime's invoke ARN is published to SSM
+// (/qdm-remote/agentcore-runtime-arn); mcp-middleware reads it at cold start
+// and builds the invoke URL itself, so no post-deploy env patching is needed.
 export class RuntimeStack extends Stack {
   public readonly imageUri: string;
   public readonly runtimeRoleArn: string;
@@ -62,15 +63,43 @@ export class RuntimeStack extends Stack {
     image.repository.grantPull(runtimeRole);
     this.runtimeRoleArn = runtimeRole.roleArn;
 
-    // --- Outputs consumed by deploy.sh ---
-    // deploy.sh reads these and calls boto3 bedrock-agentcore-control.create_agent_runtime
-    // to actually wire up the runtime. See packages/remote/scripts/deploy.sh
-    // "create_agent_runtime" section.
+    // --- AgentCore Runtime ---
+    const runtime = new agentcore.CfnRuntime(this, "Runtime", {
+      agentRuntimeName: "qdm_remote",
+      description: "quick-dingtalk-mcp Remote",
+      agentRuntimeArtifact: { containerConfiguration: { containerUri: image.imageUri } },
+      roleArn: runtimeRole.roleArn,
+      networkConfiguration: { networkMode: "PUBLIC" },
+      protocolConfiguration: "HTTP",
+      environmentVariables: {
+        OAUTH_BASE_URL: props.oauthBaseUrl,
+        INJECT_STRATEGY: "d2", // dws auth login --token (verified live); d1 is a stub.
+        MAX_CONCURRENT: "10",
+        // AgentCore's HTTP contract health-checks and invokes 0.0.0.0:8080.
+        // Any other port => every call returns 502 with no container logs.
+        PORT: "8080",
+        DINGTALK_DWS_AGENTCODE: "quick-dingtalk-mcp",
+        DWS_DISABLE_KEYCHAIN: "1",
+      },
+      // AgentCore strips ALL inbound request headers by default. mcp-middleware
+      // passes per-user identity via these custom headers; without the allowlist
+      // the container never sees them and returns 401.
+      requestHeaderConfiguration: {
+        requestHeaderAllowlist: ["x-user-id", "x-user-access-token", "x-incr-auth-token"],
+      },
+    });
+
+    // Published for mcp-middleware (OAuthStack), which builds the invoke URL
+    // from this ARN at cold start. SSM parameters are regional, so multi-region
+    // deployments in one account don't collide. Name must match
+    // AGENTCORE_RUNTIME_ARN_PARAM in oauth-stack.ts.
+    new ssm.StringParameter(this, "RuntimeArnParam", {
+      parameterName: "/qdm-remote/agentcore-runtime-arn",
+      stringValue: runtime.attrAgentRuntimeArn,
+    });
+
     new CfnOutput(this, "ImageUri", { value: image.imageUri });
     new CfnOutput(this, "RuntimeRoleArn", { value: runtimeRole.roleArn });
-    new CfnOutput(this, "OAuthBaseUrlEcho", {
-      value: props.oauthBaseUrl,
-      description: "Echoed for deploy.sh to pass into AgentCore Runtime EnvironmentVariables.OAUTH_BASE_URL",
-    });
+    new CfnOutput(this, "AgentRuntimeArn", { value: runtime.attrAgentRuntimeArn });
   }
 }

@@ -15,6 +15,9 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 I18N="$ROOT/config/i18n.json"
 i18n() { jq -r ".$1.\"$LANG_KEY\" // .$1.en" "$I18N"; }
 run() { if [ "$DRY_RUN" -eq 1 ]; then echo "[dry-run] $*"; else "$@"; fi; }
+# Must match the region the stacks were deployed to (deploy.sh default us-east-1).
+REGION="${AWS_REGION:-${CDK_DEFAULT_REGION:-us-east-1}}"
+export AWS_REGION="$REGION" CDK_DEFAULT_REGION="$REGION"
 
 if [ "$DRY_RUN" -eq 0 ]; then
   read -rp "$(i18n teardown.warning) " ANS

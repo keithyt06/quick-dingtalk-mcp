@@ -41,7 +41,7 @@ const { signMcpToken } = await import("../shared/hmac.ts");
 
 const mod = await import("./index.ts");
 mod._setClients({ ssm: fakeSsm, credsProvider: fakeCredsProvider });
-const { handler } = mod;
+const { handler, runtimeUrlFromArn } = mod;
 
 beforeEach(() => {
   smStore.clear();
@@ -187,4 +187,13 @@ test("last_active 在1天内 → 放行但不重写(节流)", async () => {
   assert.equal((r as any).statusCode, 200);
   const stored = JSON.parse(smStore.get("quick-dingtalk-mcp/users/u7")!);
   assert.equal(stored.last_active, recent, "节流期内 last_active 不应被改写");
+});
+
+test("runtimeUrlFromArn: ARN url-encoded once, region parameterized", () => {
+  const arn = "arn:aws:bedrock-agentcore:eu-central-1:111122223333:runtime/qdm_remote-abc123";
+  const url = runtimeUrlFromArn(arn, "eu-central-1");
+  assert.equal(url,
+    "https://bedrock-agentcore.eu-central-1.amazonaws.com/runtimes/" +
+    "arn%3Aaws%3Abedrock-agentcore%3Aeu-central-1%3A111122223333%3Aruntime%2Fqdm_remote-abc123" +
+    "/invocations?qualifier=DEFAULT");
 });

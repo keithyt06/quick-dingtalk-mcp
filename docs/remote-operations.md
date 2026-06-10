@@ -152,7 +152,6 @@ teardown.sh 实际是依次 `npx cdk destroy QdmRemoteWaf / QdmRemoteRuntime / Q
 
 | 资源 | 原因 | 手动清理 |
 |---|---|---|
-| **AgentCore Runtime（`qdm_remote`）** | 由 deploy.sh 经 boto3 创建，不在任何 CFN 栈里 | `aws bedrock-agentcore-control delete-agent-runtime --agent-runtime-id <id> --region us-east-1` |
 | SM secrets（用户 token） | 由 Lambda 运行时创建，非 CFN 管理 | `aws secretsmanager delete-secret --force-delete-without-recovery` 逐个 |
 | DDB 表 `OAuthStateTable` | `RemovalPolicy.RETAIN`（存有 OAuth 客户端注册 + refresh token） | 确认不再需要后控制台删除 |
 | 容器镜像 | 存在 CDK bootstrap 的共享 ECR（`cdk-hnb659fds-container-assets-*`），**勿删整个 repo**（可能有其他项目镜像） | 按 image tag 逐个清理或交给 bootstrap lifecycle |

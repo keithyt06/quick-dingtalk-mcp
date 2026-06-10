@@ -7,8 +7,8 @@
       "en": "quick-dingtalk-mcp Remote Deployment"
     },
     "prompt_region": {
-      "zh": "部署目标 region (固定 us-east-1):",
-      "en": "Target region (locked to us-east-1):"
+      "zh": "部署目标 region (AWS_REGION 可改,默认 us-east-1;WAF 栈恒在 us-east-1):",
+      "en": "Target region (set AWS_REGION to change, default us-east-1; WAF stack always us-east-1):"
     },
     "prompt_dingtalk_app_id": {
       "zh": "钉钉开放平台 AppKey:",
@@ -83,8 +83,8 @@
       "en": "Will destroy all stacks (RuntimeStack -> OAuthStack -> WAFStack). Continue? (y/N):"
     },
     "preserved_secrets_note": {
-      "zh": "Secrets Manager 用户 token (按默认 30 天恢复期保留)、AgentCore Runtime 本体和容器镜像不会自动删。手动清理: aws secretsmanager delete-secret --force-delete-without-recovery / aws bedrock-agentcore-control delete-agent-runtime",
-      "en": "User-token Secrets Manager entries (kept under the default 30-day recovery window), the AgentCore Runtime itself, and container images are NOT auto-deleted. Manual cleanup: aws secretsmanager delete-secret --force-delete-without-recovery / aws bedrock-agentcore-control delete-agent-runtime"
+      "zh": "Secrets Manager 用户 token (按默认 30 天恢复期保留) 和 CDK bootstrap ECR 里的容器镜像不会自动删。手动清理: aws secretsmanager delete-secret --force-delete-without-recovery;镜像按 tag 删,不要删共享的 bootstrap repo",
+      "en": "User-token Secrets Manager entries (kept under the default 30-day recovery window) and container images in the CDK bootstrap ECR are NOT auto-deleted. Manual cleanup: aws secretsmanager delete-secret --force-delete-without-recovery; delete images by tag, never the shared bootstrap repo"
     }
   },
   "alarm_card": {

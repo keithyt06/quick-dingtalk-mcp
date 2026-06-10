@@ -36,6 +36,14 @@ done
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 I18N="$ROOT/config/i18n.json"
 
+# Deploy region: AWS_REGION (or CDK_DEFAULT_REGION) wins; default us-east-1.
+# AgentCore Runtime must be available in the chosen region — check with
+#   aws bedrock-agentcore-control list-agent-runtimes --region <region>
+# The optional WAF stack ALWAYS deploys to us-east-1 regardless (CloudFront-scope
+# WebACLs are an AWS hard constraint), see infra/bin/app.ts.
+REGION="${AWS_REGION:-${CDK_DEFAULT_REGION:-us-east-1}}"
+export AWS_REGION="$REGION" CDK_DEFAULT_REGION="$REGION"
+
 i18n() {
   local path="$1"
   jq -r ".$path.\"$LANG_KEY\" // .$path.en" "$I18N"
@@ -50,7 +58,7 @@ run() {
 }
 
 echo "=== $(i18n deploy.title) ==="
-echo "$(i18n deploy.prompt_region) us-east-1"
+echo "$(i18n deploy.prompt_region) $REGION"
 
 if [ "$DRY_RUN" -eq 1 ]; then
   DINGTALK_APP_ID="dry-run-app-id"
@@ -83,11 +91,11 @@ else
   # and AppKey defaults to the value already deployed on the live stack, so an
   # update deploy is mostly hitting Enter. AppSecret may be left EMPTY to keep
   # the secret already stored in SSM.
-  SHIM_ARN=$(aws cloudformation describe-stacks --stack-name QdmRemoteOAuth --region us-east-1 \
+  SHIM_ARN=$(aws cloudformation describe-stacks --stack-name QdmRemoteOAuth --region "$REGION" \
     --query 'Stacks[0].Outputs[?OutputKey==`TokenRefreshShimArn`].OutputValue' --output text 2>/dev/null || true)
   EXISTING_APP_ID=""
   if [ -n "$SHIM_ARN" ] && [ "$SHIM_ARN" != "None" ]; then
-    EXISTING_APP_ID=$(aws lambda get-function-configuration --region us-east-1 --function-name "$SHIM_ARN" \
+    EXISTING_APP_ID=$(aws lambda get-function-configuration --region "$REGION" --function-name "$SHIM_ARN" \
       --query 'Environment.Variables.DINGTALK_APP_ID' --output text 2>/dev/null || true)
     { [ "$EXISTING_APP_ID" = "None" ] || [ "$EXISTING_APP_ID" = "PLACEHOLDER_APP_ID" ]; } && EXISTING_APP_ID=""
   fi
@@ -149,12 +157,12 @@ cdk_deploy deploy QdmRemoteOAuth \
 # - dingtalk-app-secret: written only when a non-empty secret was provided
 #   (prompt or env). Empty input = keep what's already in SSM.
 ssm_current() {
-  aws ssm get-parameter --region us-east-1 --name "$1" --with-decryption \
+  aws ssm get-parameter --region "$REGION" --name "$1" --with-decryption \
     --query 'Parameter.Value' --output text 2>/dev/null || echo ""
 }
 ssm_write_secure() {
-  run aws ssm delete-parameter --region us-east-1 --name "$1" 2>/dev/null || true
-  run aws ssm put-parameter --region us-east-1 --name "$1" --value "$2" --type SecureString
+  run aws ssm delete-parameter --region "$REGION" --name "$1" 2>/dev/null || true
+  run aws ssm put-parameter --region "$REGION" --name "$1" --value "$2" --type SecureString
 }
 
 HMAC_PARAM=/qdm-remote/QdmRemoteOAuth/hmac-key
@@ -174,7 +182,7 @@ else
   CUR_SECRET=$(ssm_current "$SECRET_PARAM")
   if [ -z "$CUR_SECRET" ] || [ "$CUR_SECRET" = "REPLACE_AT_DEPLOY" ]; then
     echo "WARN: no AppSecret provided and none stored yet — OAuth will fail until you run:" >&2
-    echo "  aws ssm put-parameter --overwrite --region us-east-1 --type SecureString \\" >&2
+    echo "  aws ssm put-parameter --overwrite --region $REGION --type SecureString \\" >&2
     echo "    --name $SECRET_PARAM --value <real-secret>" >&2
   else
     echo "AppSecret input empty — keeping the secret already stored in SSM."
@@ -185,9 +193,9 @@ if [ "$DRY_RUN" -eq 1 ]; then
   OAUTH_BASE_URL="https://placeholder"
   STATE_TABLE="placeholder-state-table"
 else
-  OAUTH_BASE_URL=$(aws cloudformation describe-stacks --stack-name QdmRemoteOAuth --region us-east-1 \
+  OAUTH_BASE_URL=$(aws cloudformation describe-stacks --stack-name QdmRemoteOAuth --region "$REGION" \
     --query 'Stacks[0].Outputs[?OutputKey==`OAuthBaseUrl`].OutputValue' --output text 2>/dev/null || echo "https://placeholder")
-  STATE_TABLE=$(aws cloudformation describe-stacks --stack-name QdmRemoteOAuth --region us-east-1 \
+  STATE_TABLE=$(aws cloudformation describe-stacks --stack-name QdmRemoteOAuth --region "$REGION" \
     --query 'Stacks[0].Outputs[?OutputKey==`OAuthStateTableName`].OutputValue' --output text 2>/dev/null || echo "")
 fi
 
@@ -206,7 +214,7 @@ if [ -n "$STATE_TABLE" ] && [ "$STATE_TABLE" != "None" ]; then
     '{redirectUris: ($uris | split(",") | map(gsub("^\\s+|\\s+$"; ""))), authMethod: "client_secret_basic", clientName: "Amazon Quick"}')
   QUICK_CLIENT_ITEM=$(jq -cn --arg p "$QUICK_CLIENT_PAYLOAD" '{state: {S: "client#quick"}, payload: {S: $p}}')
   echo "Pre-registering OAuth client 'quick' (table: $STATE_TABLE, redirect URIs: $QUICK_REDIRECT_URIS)"
-  run aws dynamodb put-item --region us-east-1 --table-name "$STATE_TABLE" --item "$QUICK_CLIENT_ITEM"
+  run aws dynamodb put-item --region "$REGION" --table-name "$STATE_TABLE" --item "$QUICK_CLIENT_ITEM"
 else
   echo "WARN: OAuthStateTableName stack output not found — skipping client#quick pre-registration." >&2
   echo "      (Redeploy QdmRemoteOAuth to get the output, then re-run deploy.sh.)" >&2
@@ -228,12 +236,12 @@ if [ "$ONLY_OAUTH" -eq 1 ]; then
   echo "  3. Add: $OAUTH_BASE_URL/callback"
   echo "  4. Copy the AppKey + AppSecret from the app detail page"
   echo "  5. Write real values into SSM (SecureString):"
-  echo "       aws ssm put-parameter --overwrite --region us-east-1 --type SecureString \\"
+  echo "       aws ssm put-parameter --overwrite --region $REGION --type SecureString \\"
   echo "         --name /qdm-remote/QdmRemoteOAuth/dingtalk-app-secret --value <real-secret>"
   echo "  6. Update Lambda env DINGTALK_APP_ID (or redeploy with -c dingtalkAppId=<real>):"
   echo "       npx cdk deploy QdmRemoteOAuth -c dingtalkAppId=<real-app-key>"
   echo "  7. Generate the real HMAC signing key (one-time):"
-  echo "       aws ssm put-parameter --overwrite --region us-east-1 --type SecureString \\"
+  echo "       aws ssm put-parameter --overwrite --region $REGION --type SecureString \\"
   echo "         --name /qdm-remote/QdmRemoteOAuth/hmac-key \\"
   echo "         --value \"\$(openssl rand -hex 32)\""
   echo "  8. Open in browser to start OAuth: $OAUTH_BASE_URL/authorize"
@@ -244,6 +252,10 @@ if [ "$ONLY_OAUTH" -eq 1 ]; then
   exit 0
 fi
 
+# RuntimeStack now contains the AgentCore Runtime itself
+# (AWS::BedrockAgentCore::Runtime) plus an SSM parameter carrying its ARN that
+# mcp-middleware reads at cold start. The old boto3 create-agent-runtime +
+# Lambda-env-patch side channel is gone — CDK is the whole deployment.
 echo "$(i18n deploy.deploying_runtime)"
 cdk_deploy deploy QdmRemoteRuntime \
   -c alarmPreset="$PRESET" \
@@ -251,83 +263,6 @@ cdk_deploy deploy QdmRemoteRuntime \
   -c dingtalkAppId="$DINGTALK_APP_ID" \
   -c oauthBaseUrl="$OAUTH_BASE_URL" \
   --require-approval never
-
-# Read RuntimeStack outputs (ImageUri + RuntimeRoleArn) and create AgentCore
-# Runtime via boto3 (no CFN resource type for AgentCore exists yet).
-if [ "$DRY_RUN" -eq 0 ]; then
-  IMAGE_URI=$(aws cloudformation describe-stacks --stack-name QdmRemoteRuntime --region us-east-1 \
-    --query 'Stacks[0].Outputs[?OutputKey==`ImageUri`].OutputValue' --output text)
-  RUNTIME_ROLE_ARN=$(aws cloudformation describe-stacks --stack-name QdmRemoteRuntime --region us-east-1 \
-    --query 'Stacks[0].Outputs[?OutputKey==`RuntimeRoleArn`].OutputValue' --output text)
-  echo "Creating/updating AgentCore Runtime (boto3, no CFN equivalent yet)..."
-  RUNTIME_ARN=$(python3 <<PYEOF
-import boto3, sys
-c = boto3.client('bedrock-agentcore-control', region_name='us-east-1')
-config = {
-  'agentRuntimeArtifact': {'containerConfiguration': {'containerUri': '$IMAGE_URI'}},
-  'roleArn': '$RUNTIME_ROLE_ARN',
-  'networkConfiguration': {'networkMode': 'PUBLIC'},
-  'protocolConfiguration': {'serverProtocol': 'HTTP'},
-  # AgentCore HTTP contract REQUIRES the container to listen on 0.0.0.0:8080.
-  # PORT=8000 (anything else) => the platform health-checks/invokes 8080, gets
-  # nothing, and every call returns 502.
-  'environmentVariables': {
-    'OAUTH_BASE_URL': '$OAUTH_BASE_URL',
-    'INJECT_STRATEGY': 'd2',   # dws auth login --token (verified); d1 is a stub.
-    'MAX_CONCURRENT': '10',
-    'PORT': '8080',
-    'DINGTALK_DWS_AGENTCODE': 'quick-dingtalk-mcp',
-    'DWS_DISABLE_KEYCHAIN': '1',
-  },
-  # AgentCore strips ALL inbound request headers by default. mcp-middleware
-  # passes per-user identity via these custom headers; without the allowlist the
-  # container never sees them and returns 401.
-  'requestHeaderConfiguration': {
-    'requestHeaderAllowlist': ['x-user-id', 'x-user-access-token', 'x-incr-auth-token'],
-  },
-}
-try:
-  resp = c.create_agent_runtime(agentRuntimeName='qdm_remote', description='quick-dingtalk-mcp Remote', **config)
-  print(resp['agentRuntimeArn'])
-except Exception as e:
-  if 'Conflict' in str(e) or 'already exists' in str(e).lower():
-    for r in c.list_agent_runtimes().get('agentRuntimes', []):
-      if r.get('agentRuntimeName') == 'qdm_remote':
-        rid = r['agentRuntimeId']
-        c.update_agent_runtime(agentRuntimeId=rid, **config)
-        print(r['agentRuntimeArn'])
-        sys.exit(0)
-    print(f'ERROR: conflict but cannot find existing runtime: {e}', file=sys.stderr)
-    sys.exit(1)
-  print(f'ERROR: {e}', file=sys.stderr)
-  sys.exit(1)
-PYEOF
-)
-  if [ -z "$RUNTIME_ARN" ] || [[ "$RUNTIME_ARN" == ERROR* ]]; then
-    echo "Runtime create/update failed: $RUNTIME_ARN" >&2
-    exit 1
-  fi
-  echo "Runtime ARN: $RUNTIME_ARN"
-
-  # The mcp-middleware Lambda was deployed (with OAuthStack) BEFORE the Runtime
-  # existed, so its AGENTCORE_RUNTIME_URL env is still the REPLACE_AT_DEPLOY
-  # placeholder. Build the invoke URL (ARN url-encoded as a single path segment)
-  # and patch it in now, preserving every other env var.
-  ENCODED_ARN=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$RUNTIME_ARN")
-  INVOKE_URL="https://bedrock-agentcore.us-east-1.amazonaws.com/runtimes/${ENCODED_ARN}/invocations?qualifier=DEFAULT"
-  MW_FN=$(aws cloudformation describe-stacks --stack-name QdmRemoteOAuth --region us-east-1 \
-    --query 'Stacks[0].Outputs[?OutputKey==`McpMiddlewareArn`].OutputValue' --output text)
-  echo "Patching AGENTCORE_RUNTIME_URL into mcp-middleware ($MW_FN)..."
-  python3 - "$MW_FN" "$INVOKE_URL" <<'PYENV'
-import boto3, sys
-fn, url = sys.argv[1], sys.argv[2]
-lc = boto3.client('lambda', region_name='us-east-1')
-env = lc.get_function_configuration(FunctionName=fn).get('Environment', {}).get('Variables', {})
-env['AGENTCORE_RUNTIME_URL'] = url
-lc.update_function_configuration(FunctionName=fn, Environment={'Variables': env})
-print('  AGENTCORE_RUNTIME_URL set.')
-PYENV
-fi
 
 if [ "$ENABLE_WAF_FLAG" = "true" ]; then
   echo "$(i18n deploy.deploying_waf)"
