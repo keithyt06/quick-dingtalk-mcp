@@ -116,9 +116,33 @@ done
 
 if [ "$DRY_RUN" -eq 1 ]; then
   OAUTH_BASE_URL="https://placeholder"
+  STATE_TABLE="placeholder-state-table"
 else
   OAUTH_BASE_URL=$(aws cloudformation describe-stacks --stack-name QdmRemoteOAuth --region us-east-1 \
     --query 'Stacks[0].Outputs[?OutputKey==`OAuthBaseUrl`].OutputValue' --output text 2>/dev/null || echo "https://placeholder")
+  STATE_TABLE=$(aws cloudformation describe-stacks --stack-name QdmRemoteOAuth --region us-east-1 \
+    --query 'Stacks[0].Outputs[?OutputKey==`OAuthStateTableName`].OutputValue' --output text 2>/dev/null || echo "")
+fi
+
+# Pre-register the fixed OAuth client `quick` (idempotent upsert into the
+# OAuthStateTable). Quick's "User authentication" form requires a hand-entered
+# Client ID and never runs DCR, so this record must exist for the wizard to
+# pass /authorize validation. Previously written by hand — a table rebuild
+# silently dropped it; now every deploy re-asserts it.
+# The item carries NO `ttl` attribute, so neither DynamoDB TTL nor the in-code
+# expiry check ever expires it.
+# Override the callback allowlist via QUICK_REDIRECT_URIS (comma-separated)
+# if your Quick endpoint uses a different QuickSight region/domain.
+QUICK_REDIRECT_URIS="${QUICK_REDIRECT_URIS:-https://us-east-1.quicksight.aws.amazon.com/sn/oauthcallback}"
+if [ -n "$STATE_TABLE" ] && [ "$STATE_TABLE" != "None" ]; then
+  QUICK_CLIENT_PAYLOAD=$(jq -cn --arg uris "$QUICK_REDIRECT_URIS" \
+    '{redirectUris: ($uris | split(",") | map(gsub("^\\s+|\\s+$"; ""))), authMethod: "client_secret_basic", clientName: "Amazon Quick"}')
+  QUICK_CLIENT_ITEM=$(jq -cn --arg p "$QUICK_CLIENT_PAYLOAD" '{state: {S: "client#quick"}, payload: {S: $p}}')
+  echo "Pre-registering OAuth client 'quick' (table: $STATE_TABLE, redirect URIs: $QUICK_REDIRECT_URIS)"
+  run aws dynamodb put-item --region us-east-1 --table-name "$STATE_TABLE" --item "$QUICK_CLIENT_ITEM"
+else
+  echo "WARN: OAuthStateTableName stack output not found — skipping client#quick pre-registration." >&2
+  echo "      (Redeploy QdmRemoteOAuth to get the output, then re-run deploy.sh.)" >&2
 fi
 
 if [ "$ONLY_OAUTH" -eq 1 ]; then
