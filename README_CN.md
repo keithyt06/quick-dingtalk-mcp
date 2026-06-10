@@ -136,7 +136,7 @@ curl -fsSL https://raw.githubusercontent.com/keithyt06/quick-dingtalk-mcp/main/p
 - 发给成员的**授权 URL**
 - 成员粘进 Amazon Quick Desktop 的 **MCP 端点**（`https://<域名>/mcp`）
 
-> 前置：一个钉钉应用（AppKey/AppSecret），并把 `<域名>/callback` 注册为其重定向 URL；`us-east-1` 的 AWS 凭证；Docker；Node ≥ 22.6。鸡生蛋问题（没部署哪来的域名）：先跑 `deploy.sh --only-oauth` 只部署网关、拿到 CloudFront 域名去钉钉注册回调，再跑完整部署。完整部署指南（前置条件、首次两段式部署、**更新部署——不要直接重跑 deploy.sh**、冒烟验证、卸载）→ **[docs/remote-deploy.md](./docs/remote-deploy.md)** · 日常运维见 [docs/remote-operations.md](./docs/remote-operations.md)。
+> 前置：一个钉钉应用（AppKey/AppSecret），并把 `<域名>/callback` 注册为其重定向 URL；`us-east-1` 的 AWS 凭证；Docker；Node ≥ 22.6。鸡生蛋问题（没部署哪来的域名）：先跑 `deploy.sh --only-oauth` 只部署网关、拿到 CloudFront 域名去钉钉注册回调，再跑完整部署。后续更新？**直接重跑 `deploy.sh` 即可**——它是幂等的（签名密钥与已存 Secret 都会保留）。完整部署指南（前置条件、首次两段式部署、更新部署、冒烟验证、卸载）→ **[docs/remote-deploy.md](./docs/remote-deploy.md)** · 日常运维见 [docs/remote-operations.md](./docs/remote-operations.md)。
 
 ### 成员：接入你的 MCP 客户端
 

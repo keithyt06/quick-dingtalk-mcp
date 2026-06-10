@@ -1,6 +1,6 @@
 # Remote 端 AWS 部署指南
 
-> 面向**第一次把 Remote 栈部署到 AWS 的管理员**。覆盖前置条件、首次部署(含鸡生蛋问题)、日常更新部署(**与首次不同,直接重跑 deploy.sh 会把全员登出**)、部署后验证与卸载。日常运维(ops.sh、撤销用户、告警)见 [remote-operations.md](./remote-operations.md)。
+> 面向**部署 Remote 栈到 AWS 的管理员**。覆盖前置条件、首次部署(含鸡生蛋问题)、更新部署(重跑 `deploy.sh` 即可,幂等)、部署后验证与卸载。日常运维(ops.sh、撤销用户、告警)见 [remote-operations.md](./remote-operations.md)。
 
 ## 架构与资源清单
 
@@ -38,79 +38,39 @@ bash packages/remote/scripts/deploy.sh --only-oauth
 
 `--only-oauth` 跳过交互提问,用占位符部署 `QdmRemoteOAuth`,结束时打印 CloudFront 域名和后续步骤清单。
 
-### 第 2 段:注册回调、填真实凭证、全量部署
+### 第 2 段:注册回调、全量部署
 
 1. 去钉钉开放平台,把 `https://<CloudFront域名>/callback` 加进应用的回调地址。
-2. 把真实 AppSecret 写进 SSM(SecureString):
-
-   ```bash
-   aws ssm put-parameter --overwrite --region us-east-1 --type SecureString \
-     --name /qdm-remote/QdmRemoteOAuth/dingtalk-app-secret --value <真实AppSecret>
-   ```
-
-3. 全量部署(交互输入 AppKey、告警 webhook(可留空)、alarm preset(默认 standard)、是否开 WAF):
+2. 全量部署,交互输入 AppKey 和 AppSecret(其余提问可一路回车:告警 webhook 留空、alarm preset 默认 standard、WAF 默认不开):
 
    ```bash
    bash packages/remote/scripts/deploy.sh
    ```
 
-deploy.sh 全量模式依次做:部署 OAuthStack → 生成并写入 HMAC 主密钥 + AppSecret 到 SSM → 幂等 upsert `client#quick`(回调白名单默认 us-east-1 QuickSight,可用 `QUICK_REDIRECT_URIS=<逗号分隔>` 覆盖)→ 部署 RuntimeStack(本地构建 ARM64 镜像并推 ECR)→ boto3 创建/更新 AgentCore Runtime(`PORT=8080`、`INJECT_STRATEGY=d2`、自定义请求头白名单)→ 把 Runtime 的 invoke URL 回填进 mcp-middleware 的 `AGENTCORE_RUNTIME_URL` 环境变量 → 打印授权 URL 和 MCP 端点。
+deploy.sh 全量模式依次做:部署 OAuthStack → 首次生成 HMAC 主密钥、写入 AppSecret 到 SSM(均幂等,重跑不覆盖,见下文「更新部署」)→ 幂等 upsert `client#quick`(回调白名单默认 us-east-1 QuickSight,可用 `QUICK_REDIRECT_URIS=<逗号分隔>` 覆盖)→ 部署 RuntimeStack(本地构建 ARM64 镜像并推 ECR)→ boto3 创建/更新 AgentCore Runtime(`PORT=8080`、`INJECT_STRATEGY=d2`、自定义请求头白名单)→ 把 Runtime 的 invoke URL 回填进 mcp-middleware 的 `AGENTCORE_RUNTIME_URL` 环境变量 → 打印授权 URL 和 MCP 端点。
 
 结束后把打印的 **授权 URL**(`https://<域名>/authorize`)和 **MCP 端点**(`https://<域名>/mcp`)发给团队成员,成员自助接入见 [remote-新人首配-oauth.md](./remote-新人首配-oauth.md)。
 
 ## 更新部署(day-2,改了代码之后)
 
-> ⚠️ **不要为了更新而重跑全量 `deploy.sh`**:它每次都会重新生成 HMAC 主密钥并覆盖 SSM——**所有已发放的用户 token 立即全部失效,全员重新授权**。HMAC 轮换只应在怀疑密钥泄露时主动执行(见 [remote-operations.md](./remote-operations.md))。
-
-按改动范围选择:
-
-### 只改了 Lambda / 网关 / 告警(packages/remote/lambda、infra/lib/oauth-stack.ts)
+**重跑 `deploy.sh` 即可——它是幂等的**:
 
 ```bash
-cd packages/remote && npm run build:lambda
-cd infra
-AWS_REGION=us-east-1 npx cdk deploy QdmRemoteOAuth \
-  -c alarmPreset=standard -c alarmWebhookUrl="" \
-  -c dingtalkAppId=<你的AppKey> --require-approval never
+git -C ~/.quick-dingtalk-mcp pull
+bash packages/remote/scripts/deploy.sh
 ```
 
-CFN 就地更新,不动 SSM、不动 `client#quick`、不影响在线用户。mcp-middleware 的 `AGENTCORE_RUNTIME_URL` 是带外写入的环境变量,CFN 更新会保留它(模板里仍是占位符,只有模板中 env 定义变化时才会被冲掉——若部署后 `/mcp` 全 502,按 deploy.sh 末段的 invoke URL 格式用 `aws lambda update-function-configuration` 重新回填)。
+- **HMAC 主密钥保留不动**(只在首次部署时生成一次),已发放的用户 token 全部继续有效。怀疑密钥泄露需要主动轮换时才加 `--rotate-hmac`(⚠️ 全员登出)。
+- **AppSecret 留空直接回车 = 沿用 SSM 里已存的值**;AppKey 提示符会带出现网在用的值作默认。所有提问都可用环境变量预填(`DINGTALK_APP_ID` / `DINGTALK_APP_SECRET` / `ALARM_WEBHOOK` / `PRESET` / `ENABLE_WAF`),做到完全无交互:
 
-### 改了容器(packages/remote/docker)
+  ```bash
+  DINGTALK_APP_ID=<AppKey> ALARM_WEBHOOK= PRESET=standard ENABLE_WAF=N \
+    bash packages/remote/scripts/deploy.sh
+  ```
 
-容器改动要走「重建镜像 → 指挥 AgentCore Runtime 切到新镜像」两步:
+- `client#quick` 预注册是幂等 upsert;镜像重建、AgentCore Runtime 更新(`PORT=8080`、请求头白名单)、mcp-middleware 的 invoke URL 回填,deploy.sh 全部自动处理。
 
-```bash
-# 1. 重建并推送镜像(CDK 自动构建 ARM64 并推 ECR,输出新 ImageUri)
-cd packages/remote/infra
-AWS_REGION=us-east-1 npx cdk deploy QdmRemoteRuntime \
-  -c dingtalkAppId=<AppKey> -c oauthBaseUrl=https://<CloudFront域名> \
-  -c alarmPreset=standard -c alarmWebhookUrl="" --require-approval never
-
-# 2. 用栈输出的 ImageUri 更新 Runtime(环境变量与请求头白名单必须全量带上)
-python3 - <<'EOF'
-import boto3
-c = boto3.client('bedrock-agentcore-control', region_name='us-east-1')
-rid = next(r['agentRuntimeId'] for r in c.list_agent_runtimes()['agentRuntimes']
-           if r['agentRuntimeName'] == 'qdm_remote')
-c.update_agent_runtime(
-    agentRuntimeId=rid,
-    agentRuntimeArtifact={'containerConfiguration': {'containerUri': '<新ImageUri>'}},
-    roleArn='<栈输出 RuntimeRoleArn>',
-    networkConfiguration={'networkMode': 'PUBLIC'},
-    protocolConfiguration={'serverProtocol': 'HTTP'},
-    environmentVariables={
-        'OAUTH_BASE_URL': 'https://<CloudFront域名>',
-        'INJECT_STRATEGY': 'd2', 'MAX_CONCURRENT': '10', 'PORT': '8080',
-        'DINGTALK_DWS_AGENTCODE': 'quick-dingtalk-mcp', 'DWS_DISABLE_KEYCHAIN': '1',
-    },
-    requestHeaderConfiguration={'requestHeaderAllowlist':
-        ['x-user-id', 'x-user-access-token', 'x-incr-auth-token']},
-)
-EOF
-```
-
-等状态回到 `READY`(`get_agent_runtime` 轮询,通常 1–2 分钟)。两个易错点:`PORT` 必须 8080(AgentCore HTTP 契约固定健康检查 8080,填别的全线 502);`requestHeaderAllowlist` 必须带上,否则容器收不到用户身份头、全部 401。
+只改了 Lambda 想跳过镜像构建提速?可以单独 `cd packages/remote && npm run build:lambda && cd infra && AWS_REGION=us-east-1 npx cdk deploy QdmRemoteOAuth -c dingtalkAppId=<AppKey> -c alarmPreset=standard -c alarmWebhookUrl="" --require-approval never`——CFN 就地更新,不碰 SSM 与用户。但拿不准就重跑 deploy.sh,不会更糟。
 
 ### 部署前自检
 

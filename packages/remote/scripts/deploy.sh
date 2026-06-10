@@ -6,6 +6,7 @@ set -euo pipefail
 
 DRY_RUN=0
 ONLY_OAUTH=0
+ROTATE_HMAC=0
 LANG_KEY=zh
 [[ "${LANG:-}" =~ en ]] && LANG_KEY=en
 
@@ -13,14 +14,19 @@ for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY_RUN=1 ;;
     --only-oauth) ONLY_OAUTH=1 ;;
+    --rotate-hmac) ROTATE_HMAC=1 ;;
     --en) LANG_KEY=en ;;
     --zh) LANG_KEY=zh ;;
     --help|-h)
-      echo "Usage: deploy.sh [--dry-run] [--only-oauth] [--en|--zh]"
+      echo "Usage: deploy.sh [--dry-run] [--only-oauth] [--rotate-hmac] [--en|--zh]"
       echo ""
       echo "  --only-oauth   Only deploy OAuthStack (skip Runtime + WAF)."
       echo "                 Use this for first-time deploy to get the CloudFront domain"
       echo "                 before registering OAuth callback URL with DingTalk."
+      echo "  --rotate-hmac  Force-rotate the HMAC signing key. EVERY issued user token"
+      echo "                 becomes invalid (all users must re-authorize). Only use when"
+      echo "                 you suspect the key leaked. Re-running deploy.sh WITHOUT this"
+      echo "                 flag preserves the existing key (idempotent re-deploy)."
       echo "  --dry-run      Print actions without running."
       exit 0
       ;;
@@ -65,18 +71,48 @@ elif [ "$ONLY_OAUTH" -eq 1 ]; then
   echo "[--only-oauth]     --name /qdm-remote/QdmRemoteOAuth/dingtalk-app-secret \\"
   echo "[--only-oauth]     --value <real-secret>"
   DINGTALK_APP_ID="${DINGTALK_APP_ID:-PLACEHOLDER_APP_ID}"
-  DINGTALK_APP_SECRET="${DINGTALK_APP_SECRET:-PLACEHOLDER_SECRET}"
+  # Empty secret = "keep whatever is in SSM" (see idempotent SSM section below),
+  # so re-running --only-oauth never clobbers a real secret with a placeholder.
+  DINGTALK_APP_SECRET="${DINGTALK_APP_SECRET:-}"
   ALARM_WEBHOOK=""
   PRESET="standard"
   ENABLE_WAF="N"
 else
-  read -rp "$(i18n deploy.prompt_dingtalk_app_id) " DINGTALK_APP_ID
-  read -rsp "$(i18n deploy.prompt_dingtalk_app_secret) " DINGTALK_APP_SECRET; echo
-  read -rp "$(i18n deploy.prompt_alarm_webhook) " ALARM_WEBHOOK
+  # Re-deploy convenience: every prompt can be pre-answered via env var
+  # (DINGTALK_APP_ID / DINGTALK_APP_SECRET / ALARM_WEBHOOK / PRESET / ENABLE_WAF),
+  # and AppKey defaults to the value already deployed on the live stack, so an
+  # update deploy is mostly hitting Enter. AppSecret may be left EMPTY to keep
+  # the secret already stored in SSM.
+  SHIM_ARN=$(aws cloudformation describe-stacks --stack-name QdmRemoteOAuth --region us-east-1 \
+    --query 'Stacks[0].Outputs[?OutputKey==`TokenRefreshShimArn`].OutputValue' --output text 2>/dev/null || true)
+  EXISTING_APP_ID=""
+  if [ -n "$SHIM_ARN" ] && [ "$SHIM_ARN" != "None" ]; then
+    EXISTING_APP_ID=$(aws lambda get-function-configuration --region us-east-1 --function-name "$SHIM_ARN" \
+      --query 'Environment.Variables.DINGTALK_APP_ID' --output text 2>/dev/null || true)
+    { [ "$EXISTING_APP_ID" = "None" ] || [ "$EXISTING_APP_ID" = "PLACEHOLDER_APP_ID" ]; } && EXISTING_APP_ID=""
+  fi
+  if [ -z "${DINGTALK_APP_ID:-}" ]; then
+    if [ -n "$EXISTING_APP_ID" ]; then
+      read -rp "$(i18n deploy.prompt_dingtalk_app_id) [$EXISTING_APP_ID] " DINGTALK_APP_ID
+      DINGTALK_APP_ID="${DINGTALK_APP_ID:-$EXISTING_APP_ID}"
+    else
+      read -rp "$(i18n deploy.prompt_dingtalk_app_id) " DINGTALK_APP_ID
+    fi
+  fi
+  if [ -z "${DINGTALK_APP_SECRET:-}" ]; then
+    read -rsp "$(i18n deploy.prompt_dingtalk_app_secret) " DINGTALK_APP_SECRET; echo
+  fi
+  if [ -z "${ALARM_WEBHOOK+x}" ]; then
+    read -rp "$(i18n deploy.prompt_alarm_webhook) " ALARM_WEBHOOK
+  fi
   ALARM_WEBHOOK="${ALARM_WEBHOOK:-}"
-  read -rp "$(i18n deploy.prompt_alarm_preset) " PRESET
+  if [ -z "${PRESET:-}" ]; then
+    read -rp "$(i18n deploy.prompt_alarm_preset) " PRESET
+  fi
   PRESET="${PRESET:-standard}"
-  read -rp "$(i18n deploy.prompt_enable_waf) " ENABLE_WAF
+  if [ -z "${ENABLE_WAF:-}" ]; then
+    read -rp "$(i18n deploy.prompt_enable_waf) " ENABLE_WAF
+  fi
   ENABLE_WAF="${ENABLE_WAF:-N}"
 fi
 
@@ -100,19 +136,50 @@ cdk_deploy deploy QdmRemoteOAuth \
   -c dingtalkAppId="$DINGTALK_APP_ID" \
   --require-approval never
 
-# Generate + write HMAC key + AppSecret to SSM as SecureString.
+# Write HMAC key + AppSecret to SSM as SecureString — IDEMPOTENTLY.
 # CloudFormation's AWS::SSM::Parameter can only create String/StringList, so the
 # stack seeds these two as String placeholders (value REPLACE_AT_DEPLOY). You
 # cannot change a parameter's Type with `put --overwrite` (AWS rejects it), so we
 # delete the String placeholder and recreate it as SecureString.
-HMAC_KEY=$(openssl rand -hex 32)
-for ssm_pair in \
-  "/qdm-remote/QdmRemoteOAuth/hmac-key=$HMAC_KEY" \
-  "/qdm-remote/QdmRemoteOAuth/dingtalk-app-secret=$DINGTALK_APP_SECRET"; do
-  ssm_name="${ssm_pair%%=*}"; ssm_val="${ssm_pair#*=}"
-  run aws ssm delete-parameter --region us-east-1 --name "$ssm_name" 2>/dev/null || true
-  run aws ssm put-parameter --region us-east-1 --name "$ssm_name" --value "$ssm_val" --type SecureString
-done
+#
+# Idempotency rules (so re-running deploy.sh is always safe):
+# - hmac-key: generated ONCE on first deploy. Re-deploys preserve it — rotating
+#   it invalidates every issued user token (mass logout). Rotate only with
+#   --rotate-hmac.
+# - dingtalk-app-secret: written only when a non-empty secret was provided
+#   (prompt or env). Empty input = keep what's already in SSM.
+ssm_current() {
+  aws ssm get-parameter --region us-east-1 --name "$1" --with-decryption \
+    --query 'Parameter.Value' --output text 2>/dev/null || echo ""
+}
+ssm_write_secure() {
+  run aws ssm delete-parameter --region us-east-1 --name "$1" 2>/dev/null || true
+  run aws ssm put-parameter --region us-east-1 --name "$1" --value "$2" --type SecureString
+}
+
+HMAC_PARAM=/qdm-remote/QdmRemoteOAuth/hmac-key
+CUR_HMAC=""
+[ "$DRY_RUN" -eq 0 ] && CUR_HMAC=$(ssm_current "$HMAC_PARAM")
+if [ "$ROTATE_HMAC" -eq 1 ] || [ -z "$CUR_HMAC" ] || [ "$CUR_HMAC" = "REPLACE_AT_DEPLOY" ]; then
+  [ "$ROTATE_HMAC" -eq 1 ] && echo "!! --rotate-hmac: rotating HMAC key — ALL user tokens are now invalid."
+  ssm_write_secure "$HMAC_PARAM" "$(openssl rand -hex 32)"
+else
+  echo "HMAC key already provisioned — preserved (use --rotate-hmac to force rotation)."
+fi
+
+SECRET_PARAM=/qdm-remote/QdmRemoteOAuth/dingtalk-app-secret
+if [ -n "$DINGTALK_APP_SECRET" ]; then
+  ssm_write_secure "$SECRET_PARAM" "$DINGTALK_APP_SECRET"
+else
+  CUR_SECRET=$(ssm_current "$SECRET_PARAM")
+  if [ -z "$CUR_SECRET" ] || [ "$CUR_SECRET" = "REPLACE_AT_DEPLOY" ]; then
+    echo "WARN: no AppSecret provided and none stored yet — OAuth will fail until you run:" >&2
+    echo "  aws ssm put-parameter --overwrite --region us-east-1 --type SecureString \\" >&2
+    echo "    --name $SECRET_PARAM --value <real-secret>" >&2
+  else
+    echo "AppSecret input empty — keeping the secret already stored in SSM."
+  fi
+fi
 
 if [ "$DRY_RUN" -eq 1 ]; then
   OAUTH_BASE_URL="https://placeholder"

@@ -136,7 +136,7 @@ curl -fsSL https://raw.githubusercontent.com/keithyt06/quick-dingtalk-mcp/main/p
 - the **authorize URL** to hand to teammates
 - the **MCP endpoint** (`https://<domain>/mcp`) they paste into Amazon Quick Desktop
 
-> Prereqs: a DingTalk app (AppKey/AppSecret) with `<domain>/callback` registered as its redirect URL, AWS creds for `us-east-1`, Docker, and Node ≥ 22.6. Chicken-and-egg (you don't know the domain before deploying)? Run `deploy.sh --only-oauth` first — it deploys just the gateway, prints the CloudFront domain to register with DingTalk, then re-run the full deploy. Full deployment guide (prereqs, two-phase first deploy, **day-2 updates — do NOT just re-run deploy.sh**, smoke tests, teardown) → **[docs/remote-deploy.md](./docs/remote-deploy.md)** · day-2 operations → [docs/remote-operations.md](./docs/remote-operations.md).
+> Prereqs: a DingTalk app (AppKey/AppSecret) with `<domain>/callback` registered as its redirect URL, AWS creds for `us-east-1`, Docker, and Node ≥ 22.6. Chicken-and-egg (you don't know the domain before deploying)? Run `deploy.sh --only-oauth` first — it deploys just the gateway, prints the CloudFront domain to register with DingTalk, then re-run the full deploy. Updating later? **Just re-run `deploy.sh`** — it's idempotent (the signing key and stored secrets are preserved). Full deployment guide (prereqs, two-phase first deploy, updates, smoke tests, teardown) → **[docs/remote-deploy.md](./docs/remote-deploy.md)** · day-2 operations → [docs/remote-operations.md](./docs/remote-operations.md).
 
 ### Teammate: connect your MCP client
 

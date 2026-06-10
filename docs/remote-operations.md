@@ -120,7 +120,7 @@ dws CLI 锁在 Dockerfile 的 `ARG DWS_VERSION=1.0.32`，从 GitHub releases（`
 | 旋转 HMAC 主密钥（覆写 SSM 参数） | 是（Lambda 拿到新 key 后，全部老 token 立即验签失败，**无 grace 期**） | secret 不动 | 是（全员重新授权） |
 | teardown.sh 整 stack 删 | 是 | secret 默认保留（见「销毁与清理」） | 否（DDB 表删了，OAuth 客户端注册/refresh token 全失） |
 
-> HMAC 主密钥在 SSM `/qdm-remote/QdmRemoteOAuth/hmac-key`（SecureString）。旋转 = `aws ssm put-parameter --overwrite` 写入新随机值（`openssl rand -hex 32`）。注意 Lambda 进程内缓存了 key，覆写后老实例直到回收前仍用旧 key——要立即生效需同时让 Lambda 冷启（如 `aws lambda update-function-configuration` 触发新版本）。旋转是全员登出操作，仅在怀疑主密钥泄露时使用。
+> HMAC 主密钥在 SSM `/qdm-remote/QdmRemoteOAuth/hmac-key`（SecureString）。旋转 = `bash packages/remote/scripts/deploy.sh --rotate-hmac`（或手动 `aws ssm put-parameter --overwrite` 写入 `openssl rand -hex 32` 新值）。普通重跑 deploy.sh **不会**轮换密钥（幂等保留）。注意 Lambda 进程内缓存了 key，覆写后老实例直到回收前仍用旧 key——要立即生效需同时让 Lambda 冷启（如 `aws lambda update-function-configuration` 触发新版本）。旋转是全员登出操作，仅在怀疑主密钥泄露时使用。
 
 ## EventBridge 强制刷新
 
