@@ -217,7 +217,6 @@ Full index (by audience): **[docs/README.md](./docs/README.md)**
 
 - [`dws` — DingTalk-Real-AI/dingtalk-workspace-cli](https://github.com/DingTalk-Real-AI/dingtalk-workspace-cli) — does the heavy lifting; this project is a thin shim over it.
 - [`@modelcontextprotocol/sdk`](https://www.npmjs.com/package/@modelcontextprotocol/sdk)
-- Inspired by the `lark-cli-mcp` pattern for Feishu.
 
 ## License
 
