@@ -142,6 +142,10 @@ curl -fsSL https://raw.githubusercontent.com/keithyt06/quick-dingtalk-mcp/main/p
 
 网关本身就是一个标准 **OAuth 2.1 Authorization Server**，所以客户端有两种接入模式。**两者的区别只在「你的客户端怎么拿到凭证」**——底层都打到同一个后端（容器里以*你本人*的钉钉身份跑 `dws`），连上之后行为完全一样。按你的客户端支持哪种来选：
 
+<p align="center">
+  <img src="./docs/assets/remote-oauth-modes.svg" alt="Remote MCP 两种接入模式：模式 A OAuth 向导（客户端自动完成授权）与模式 B 手动复制 Bearer（你手动粘贴一次），两者最终汇合到同一个 dws 后端" width="100%">
+</p>
+
 | | **模式 A —— OAuth 向导** *(推荐)* | **模式 B —— 手动复制 Bearer** *(备用)* |
 |---|---|---|
 | 何时用 | 客户端有 OAuth 登录（Amazon Quick 有） | 客户端只能填固定请求头 |

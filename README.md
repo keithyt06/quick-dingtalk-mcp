@@ -142,6 +142,10 @@ curl -fsSL https://raw.githubusercontent.com/keithyt06/quick-dingtalk-mcp/main/p
 
 The gateway is a standard **OAuth 2.1 Authorization Server**, so your client can connect in one of two modes. **They differ only in how your client obtains the credential** — both reach the same backend (which runs `dws` under *your* DingTalk identity) and behave identically once connected. Pick by what your client supports:
 
+<p align="center">
+  <img src="./docs/assets/remote-oauth-modes.svg" alt="Remote MCP two connection modes: Mode A OAuth wizard (client auto-handles auth) and Mode B manual Bearer (you copy-paste once), both converging on the same dws backend" width="100%">
+</p>
+
 | | **Mode A — OAuth wizard** *(recommended)* | **Mode B — manual Bearer** *(fallback)* |
 |---|---|---|
 | Use when | your client has an OAuth login (Amazon Quick does) | your client only lets you set a fixed header |

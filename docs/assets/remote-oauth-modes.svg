@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="560" viewBox="0 0 900 560" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/>
+    </marker>
+    <marker id="arrG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#9ca3af"/>
+    </marker>
+    <style>
+      .box{rx:10;ry:10;stroke-width:1.5;}
+      .lbl{font-size:13px;font-weight:600;fill:#111827;}
+      .sub{font-size:10.5px;fill:#6b7280;}
+      .edge{stroke:#6b7280;stroke-width:1.6;fill:none;marker-end:url(#arr);}
+      .edgelbl{font-size:10px;fill:#6b7280;}
+      .hdr{font-size:12px;font-weight:700;letter-spacing:.3px;}
+      .cap{font-size:10.5px;fill:#4b5563;}
+      .ttl{font-size:16px;font-weight:700;fill:#111827;}
+      .merge{font-size:12px;font-weight:700;fill:#6b7280;letter-spacing:.3px;}
+    </style>
+  </defs>
+
+  <text x="30" y="34" class="ttl">Remote MCP &#8212; two ways your client gets in, <tspan fill="#4338ca">one shared dws backend</tspan></text>
+
+  <!-- ===================== MODE A LANE (recommended) ===================== -->
+  <rect x="20" y="54" width="860" height="150" rx="12" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="1.5"/>
+  <text x="40" y="76" class="hdr" fill="#16a34a">MODE A &#183; OAuth wizard &#8212; RECOMMENDED (client does the auth, zero copy-paste)</text>
+
+  <rect x="40"  y="92" width="235" height="82" class="box" fill="#ffffff" stroke="#86efac"/>
+  <text x="157" y="126" text-anchor="middle" class="lbl">Your MCP client</text>
+  <text x="157" y="144" text-anchor="middle" class="sub">e.g. Amazon Quick</text>
+  <text x="157" y="160" text-anchor="middle" class="sub">(has an OAuth login)</text>
+
+  <rect x="330" y="92" width="235" height="82" class="box" fill="#ffffff" stroke="#86efac"/>
+  <text x="447" y="120" text-anchor="middle" class="lbl">/authorize</text>
+  <text x="447" y="139" text-anchor="middle" class="sub">&#8594; DingTalk consent</text>
+  <text x="447" y="156" text-anchor="middle" class="sub">you approve with your account</text>
+
+  <rect x="620" y="92" width="235" height="82" class="box" fill="#ffffff" stroke="#86efac"/>
+  <text x="737" y="120" text-anchor="middle" class="lbl">/token</text>
+  <text x="737" y="139" text-anchor="middle" class="sub">client stores &amp;</text>
+  <text x="737" y="156" text-anchor="middle" class="sub">auto-refreshes the token</text>
+
+  <path class="edge" d="M277,133 L328,133"/>
+  <text x="302" y="126" text-anchor="middle" class="edgelbl">wizard opens</text>
+  <path class="edge" d="M567,133 L618,133"/>
+  <text x="592" y="126" text-anchor="middle" class="edgelbl">code</text>
+  <text x="40" y="196" class="cap">You click <tspan font-weight="700">Approve</tspan> once. Access token is short-lived but the client refreshes it for you &#8212; you never see, copy, or paste a token.</text>
+
+  <!-- ===================== MODE B LANE (fallback) ===================== -->
+  <rect x="20" y="212" width="860" height="150" rx="12" fill="#fffbeb" stroke="#fde68a" stroke-width="1.5"/>
+  <text x="40" y="234" class="hdr" fill="#d97706">MODE B &#183; manual Bearer &#8212; FALLBACK (for clients without an OAuth wizard)</text>
+
+  <rect x="40"  y="250" width="235" height="82" class="box" fill="#ffffff" stroke="#fcd34d"/>
+  <text x="157" y="284" text-anchor="middle" class="lbl">You, in a</text>
+  <text x="157" y="302" text-anchor="middle" class="lbl">web browser</text>
+  <text x="157" y="320" text-anchor="middle" class="sub">open the authorize URL</text>
+
+  <rect x="330" y="250" width="235" height="82" class="box" fill="#ffffff" stroke="#fcd34d"/>
+  <text x="447" y="278" text-anchor="middle" class="lbl">/authorize</text>
+  <text x="447" y="297" text-anchor="middle" class="sub">&#8594; DingTalk consent</text>
+  <text x="447" y="314" text-anchor="middle" class="sub">you approve with your account</text>
+
+  <rect x="620" y="250" width="235" height="82" class="box" fill="#ffffff" stroke="#fcd34d"/>
+  <text x="737" y="278" text-anchor="middle" class="lbl">copy &#8220;Bearer &#8230;&#8221;</text>
+  <text x="737" y="297" text-anchor="middle" class="sub">paste into the client&#8217;s</text>
+  <text x="737" y="314" text-anchor="middle" class="sub">Authorization header</text>
+
+  <path class="edge" d="M277,291 L328,291"/>
+  <text x="302" y="284" text-anchor="middle" class="edgelbl">open URL</text>
+  <path class="edge" d="M567,291 L618,291"/>
+  <text x="592" y="284" text-anchor="middle" class="edgelbl">returns Bearer</text>
+  <text x="40" y="354" class="cap">Paste the token once. It stays valid as long as you keep using it &#8212; re-auth only after 90 days idle.</text>
+
+  <!-- ===================== MERGE DIVIDER ===================== -->
+  <path d="M275,372 L625,372" stroke="#d1d5db" stroke-width="1.5" stroke-dasharray="4 4" fill="none"/>
+  <text x="450" y="388" text-anchor="middle" class="merge">&#9660;  both modes now hold a valid credential &#8212; from here the path is identical  &#9660;</text>
+
+  <!-- ===================== SHARED BACKEND LANE ===================== -->
+  <rect x="20" y="398" width="860" height="150" rx="12" fill="#eef2ff" stroke="#a5b4fc" stroke-width="1.5"/>
+  <text x="40" y="420" class="hdr" fill="#4338ca">SAME BACKEND &#183; one /mcp endpoint, the same dws, identical behavior</text>
+
+  <rect x="40"  y="436" width="185" height="84" class="box" fill="#ffffff" stroke="#c7d2fe"/>
+  <text x="132" y="466" text-anchor="middle" class="lbl">Your MCP client</text>
+  <text x="132" y="484" text-anchor="middle" class="sub">HTTPS + Bearer</text>
+  <text x="132" y="501" text-anchor="middle" class="sub">&#8230;/mcp</text>
+
+  <rect x="252" y="436" width="185" height="84" class="box" fill="#ffffff" stroke="#c7d2fe"/>
+  <text x="344" y="462" text-anchor="middle" class="lbl">Gateway</text>
+  <text x="344" y="480" text-anchor="middle" class="sub">CloudFront + API GW</text>
+  <text x="344" y="496" text-anchor="middle" class="sub">mcp-middleware: verify HMAC,</text>
+  <text x="344" y="510" text-anchor="middle" class="sub">load your DingTalk token</text>
+
+  <rect x="464" y="436" width="185" height="84" class="box" fill="#ffffff" stroke="#c7d2fe"/>
+  <text x="556" y="470" text-anchor="middle" class="lbl">AgentCore Runtime</text>
+  <text x="556" y="488" text-anchor="middle" class="sub">container runs dws</text>
+  <text x="556" y="504" text-anchor="middle" class="sub">per-user config</text>
+
+  <rect x="676" y="436" width="185" height="84" class="box" fill="#e0e7ff" stroke="#a5b4fc"/>
+  <text x="768" y="472" text-anchor="middle" class="lbl" fill="#3730a3">DingTalk</text>
+  <text x="768" y="490" text-anchor="middle" class="sub">mcp-gw.dingtalk.com</text>
+  <text x="768" y="506" text-anchor="middle" class="sub">posted as YOU</text>
+
+  <path class="edge" d="M227,478 L250,478"/>
+  <text x="238" y="471" text-anchor="middle" class="edgelbl">/mcp</text>
+  <path class="edge" d="M439,478 L462,478"/>
+  <text x="450" y="471" text-anchor="middle" class="edgelbl">SigV4</text>
+  <path class="edge" d="M651,478 L674,478"/>
+  <text x="662" y="471" text-anchor="middle" class="edgelbl">HTTPS</text>
+
+  <text x="40" y="540" class="cap">Same 38 tools &#183; per-user OAuth isolation (each teammate posts under their own identity) &#183; DingTalk tokens auto-refresh server-side.</text>
+</svg>
