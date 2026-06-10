@@ -19,20 +19,26 @@
 
 ## 一、第一次连接（2 步）
 
-### 第 1 步：在 Quick 里新建 MCP 连接器，选 OAuth
+### 第 1 步：在 Quick 里新建连接器，选 User authentication
 
-打开 **Quick → 设置（Settings）→ Capabilities → MCP → + Add MCP**，连接类型选 **Remote / HTTP**，认证方式选 **OAuth**，按下表填：
+> ⚠️ **入口要走对**：从 **Connectors（连接器）→ Add connector → MCP** 进，**不要**从 Settings → MCP 进——后者会被当成"无认证"，不会触发 OAuth 授权。
+
+认证方式选 **User authentication**（OAuth），按下表逐项填：
 
 | 字段 | 填什么 |
 |---|---|
-| MCP Server Endpoint / URL | `https://<域名>/mcp`（务必以 `/mcp` 结尾） |
+| 名称 / Name | 随便起，例如 `钉钉助手` |
+| MCP server endpoint / URL | `https://<域名>/mcp`（务必以 `/mcp` 结尾） |
+| Network / 连接类型 | `Public network`（公网） |
 | Authorization URL | `https://<域名>/authorize` |
 | Token URL | `https://<域名>/token` |
-| Client ID | 留空（Quick 会自动注册）；若必须填，随便填 `quick` |
+| Client ID | `quick` |
 | Client Secret | **任意非空占位串**，例如 `placeholder` |
 | Scope | `openid` |
 
 > **为什么 Client Secret 随便填？** 网关用更安全的 PKCE 机制鉴权，**不校验这个 secret**；但 Quick 的表单强制要求非空，所以填个占位值即可。别填真实密钥。
+
+> ⚠️ **填完先自查域名**（最常见的翻车点）：MCP endpoint、Authorization URL、Token URL 三栏的域名必须**逐字一致**。例如 `d512ohnwy06c3` 中间是字母 **`y`**（d5-1-2-o-h-n-w-**y**-0-6-c-3），不是 `v`。**强烈建议复制粘贴，别手打**——打错一个字母授权页就打不开（浏览器报"意外终止了连接"）。
 
 ### 第 2 步：保存 → 点授权 → 用你的钉钉账号同意
 
@@ -62,7 +68,13 @@
 
 ---
 
-## 三、可能遇到的两个提示
+## 三、可能遇到的几个提示
+
+**授权页打不开 / 「意外终止了连接」**
+基本都是 URL 打错了字母。回去核对 Authorization URL、Token URL、MCP endpoint 三栏域名**逐字一致**（见第 1 步的域名自查）。复制粘贴最稳。
+
+**`{"error":"invalid_client","error_description":"unknown client_id"}`**
+Client ID 没填对。本网关预置了 `quick` 这个客户端，**Client ID 必须正好填 `quick`**（别留空、别自己改）。
 
 **「redirect_uri not in registered allowlist」（授权第一步报错）**
 你的 Quick 回调地址不在网关白名单里。把 Quick 报错里显示的回调地址（形如 `https://<region>.quicksight.aws.amazon.com/sn/oauthcallback`）发给管理员加白名单即可。
@@ -96,6 +108,21 @@ A：OAuth 向导版授权后 token 自动回填、自动续期，省去复制粘
 2. 在 Quick 新建 MCP 连接器：连接类型 **Remote / HTTP**，URL 填 `https://<域名>/mcp`，请求头填 `Authorization: Bearer <刚复制的那行>`，Timeout 填 `300`。
 
 详细手动流程见 [remote-连接帮助.md](./remote-连接帮助.md)。
+
+---
+
+## 附录（管理员）：为什么 Client ID 是 `quick`，新环境怎么准备
+
+普通成员可跳过本节。
+
+Amazon Quick 的「User authentication」表单**强制要求填 Client ID/Secret，且不会自动跑动态客户端注册（DCR）**——它拿你填的 Client ID 直接打 `/authorize`。所以网关侧必须**预先注册**一个固定客户端，成员填它的 ID 即可。本部署预注册的 ID 就是 `quick`。
+
+部署一套新环境（或重建了 OAuthStateTable）后，需做两件事，否则成员填 `quick` 会报 `unknown client_id`：
+
+1. **预注册 `quick` 客户端**：往 OAuthStateTable 写一条主键 `client#quick` 的记录，内容为该客户端的 `redirectUris`（即 Quick 的回调地址）、`authMethod`、`clientName`，并带一个远期 `ttl`。
+2. **把 Quick 的回调地址加进该客户端的 `redirectUris` 白名单**：形如 `https://<region>.quicksight.aws.amazon.com/sn/oauthcallback`（以成员实际报错/实际跳转的回调为准）。
+
+> 这两步目前是手工写 DynamoDB。更稳妥的做法是把 `quick` 客户端的预注册纳入 `deploy.sh`（部署后自动 upsert 一条 `client#quick`），避免重建表后遗漏——见运维 backlog。注意 OAuthStateTable 现为 `RETAIN + PITR`，正常更新栈不会丢这条记录。
 
 ---
 

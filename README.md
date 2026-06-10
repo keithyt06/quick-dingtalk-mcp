@@ -140,15 +140,15 @@ curl -fsSL https://raw.githubusercontent.com/keithyt06/quick-dingtalk-mcp/main/p
 
 ### Teammate: connect Amazon Quick Desktop
 
-The gateway is a standard **OAuth 2.1 Authorization Server** (PKCE + dynamic client registration), so there are two ways in:
+The gateway is a standard **OAuth 2.1 Authorization Server** (PKCE + RFC 8414/9728/7591 discovery), so there are two ways in:
 
-**Recommended — OAuth wizard (no token copying):** in Quick's MCP connector, choose OAuth and fill `Authorization URL = https://<domain>/authorize`, `Token URL = https://<domain>/token`, `MCP Endpoint = https://<domain>/mcp`, `Scope = openid` (Client ID/Secret: any non-empty placeholder — PKCE is what's checked, the secret isn't). Quick then pops a login button, you approve with *your* DingTalk account, and it wires up the token automatically. Access tokens are short-lived and Quick **auto-refreshes** them — you authorize once and never touch a token.
+**Recommended — OAuth wizard (no token copying):** in Quick, add the server under **Connectors → Add connector → MCP** (not Settings → MCP) and choose **User authentication**. Fill `MCP endpoint = https://<domain>/mcp`, `Authorization URL = https://<domain>/authorize`, `Token URL = https://<domain>/token`, `Scope = openid`, `Client ID = quick`, `Client Secret = placeholder` (any non-empty value — PKCE is what's checked, the secret isn't). Quick then pops a login button, you approve with *your* DingTalk account, and it wires up the token automatically. Access tokens are short-lived and Quick **auto-refreshes** them — you authorize once and never touch a token. *(`Client ID` must be exactly `quick` — Quick's form requires a Client ID and does not run dynamic client registration, so the gateway pre-registers a fixed `quick` client; admin setup in the [first-time doc](./docs/remote-新人首配-oauth.md). Double-check the domain matches in all three URLs — a single mistyped character breaks the authorize page.)*
 
 **Fallback — manual Bearer:** for hosts without an OAuth wizard, open `https://<domain>/authorize` in a browser, approve with your DingTalk account, copy the `Bearer ...` it returns into the connector's `Authorization` header (`Connection type: Remote / HTTP`, `streamable-http`, `URL = https://<domain>/mcp`). Valid long-term as long as you keep using it (re-auth only after 90 days idle).
 
 Then **verify** — say *"use dingtalk to look up my own profile"*; it returns your real org/department. You never touch the DingTalk developer console — the app is the admin's; you just authorize with your account.
 
-Full onboarding + troubleshooting → **[docs/remote-quick-desktop.md](./docs/remote-quick-desktop.md)**
+Step-by-step onboarding (recommended OAuth path, beginner-friendly) → **[docs/remote-新人首配-oauth.md](./docs/remote-新人首配-oauth.md)** · technical reference (transport, troubleshooting matrix, admin setup) → [docs/remote-quick-desktop.md](./docs/remote-quick-desktop.md)
 
 ---
 

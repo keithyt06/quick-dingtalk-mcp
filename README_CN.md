@@ -140,15 +140,15 @@ curl -fsSL https://raw.githubusercontent.com/keithyt06/quick-dingtalk-mcp/main/p
 
 ### 成员：接入 Amazon Quick Desktop
 
-网关本身就是一个标准 **OAuth 2.1 Authorization Server**（PKCE + 动态客户端注册），所以有两条接入路径：
+网关本身就是一个标准 **OAuth 2.1 Authorization Server**（PKCE + RFC 8414/9728/7591 发现），所以有两条接入路径：
 
-**推荐 —— OAuth 向导（免复制 token）**：在 Quick 的 MCP 连接器里选 OAuth，填 `Authorization URL = https://<域名>/authorize`、`Token URL = https://<域名>/token`、`MCP Endpoint = https://<域名>/mcp`、`Scope = openid`（Client ID/Secret 填任意非空占位串——网关用 PKCE 鉴权，不校验 secret）。Quick 随后弹出登录按钮，你用*自己的*钉钉账号授权，它就自动接好 token。access token 短期有效、Quick **自动用 refresh_token 续期**——你授权一次，再也不用碰 token。
+**推荐 —— OAuth 向导（免复制 token）**：在 Quick 的 **Connectors → Add connector → MCP**（不要走 Settings → MCP）里选 **User authentication**，填 `MCP endpoint = https://<域名>/mcp`、`Authorization URL = https://<域名>/authorize`、`Token URL = https://<域名>/token`、`Scope = openid`、`Client ID = quick`、`Client Secret = placeholder`（任意非空——网关用 PKCE 鉴权，不校验 secret）。Quick 随后弹出登录按钮，你用*自己的*钉钉账号授权，它就自动接好 token。access token 短期有效、Quick **自动用 refresh_token 续期**——你授权一次，再也不用碰 token。*（`Client ID` 必须正好填 `quick`——Quick 表单强制要 Client ID 且不跑动态注册，所以网关预置了一个固定的 `quick` 客户端；管理员准备见[新人首配文档](./docs/remote-新人首配-oauth.md)。另：三个 URL 的域名要逐字核对一致，打错一个字母授权页就打不开。）*
 
 **fallback —— 手动复制 Bearer**：host 不支持 OAuth 向导时，浏览器打开 `https://<域名>/authorize`，用你自己的钉钉账号同意，把返回的 `Bearer ...` 复制进连接器的 `Authorization` header（`Connection type: Remote / HTTP`、`streamable-http`、`URL = https://<域名>/mcp`）。只要在用就长期有效（连续 90 天不用才需重新授权）。
 
 随后**验证** —— 说一句*"用 dingtalk 查一下我自己的资料"*，它会返回你真实的企业/部门信息。你完全不需要碰钉钉开放平台——应用是管理员建的，你只是用自己的账号授权。
 
-完整接入 + 故障排查 → **[docs/remote-quick-desktop.md](./docs/remote-quick-desktop.md)**
+一步步接入（推荐 OAuth 路径，面向新人）→ **[docs/remote-新人首配-oauth.md](./docs/remote-新人首配-oauth.md)** · 技术参考（传输协议、故障排查矩阵、管理员准备）→ [docs/remote-quick-desktop.md](./docs/remote-quick-desktop.md)
 
 ---
 

@@ -1,7 +1,7 @@
 # Remote 端 Quick Desktop 接入指南（多用户）
 
 > v0.2 Remote 多用户 HTTPS MCP 接入 Quick Desktop（钉钉）的完整流程。
-> 本文基于一次真实部署 + 端到端联调（2026-06-01）编写，所有步骤均已实测。
+> 方式 B（手动复制 Bearer）基于 2026-06-01 的真实部署 + 端到端联调实测；方式 A（标准 OAuth 向导）于 2026-06-10 在真实 Quick 实测通过。
 >
 > 📘 **只是想连上用、不关心技术细节？** 看面向新人的 [连接帮助](./remote-连接帮助.md)（含「连接失效怎么重连」）。本文是技术版，含传输协议、故障排查矩阵、Local/Remote 并存等。
 
@@ -37,22 +37,29 @@ Remote 的设计目标是**一次部署支持任意多个员工**，新员工接
 
 **优先用标准 OAuth**（下面「方式 A」）；host 不支持时再用「方式 B」手动流。两者颁发的都是同一种 MCP token，后端无差别。
 
-### 方式 A：标准 OAuth 向导（推荐）
+### 方式 A：标准 OAuth 向导（推荐，2026-06-10 在真实 Quick 实测通过）
 
-在 Quick Desktop 的 MCP 连接器配置里，选 OAuth / 自定义 OAuth，填：
+> ⚠️ **入口**：从 Quick 的 **Connectors（连接器）→ Add connector → MCP** 进，认证方式选 **User authentication**。**别从 Settings → MCP 进**——那条路被当成无认证，401 后不会发起 OAuth discovery（日志只见 `/mcp`、不见 `/authorize`）。
+
+在该连接器配置里填：
 
 | 字段 | 值 |
 |---|---|
+| MCP server endpoint | `https://<域名>/mcp` |
+| Network / 连接类型 | `Public network` |
 | Authorization URL | `https://<域名>/authorize` |
 | Token URL | `https://<域名>/token` |
-| Client ID | 走 DCR 动态注册的 host 留空自动注册；需手填的填任意值（如 `quick`） |
-| Client Secret | 任意非空占位串（网关用 PKCE 鉴权，**不校验 secret**；Quick 表单强制要才填） |
+| Client ID | `quick`（**必须正好填这个**——见下方说明） |
+| Client Secret | 任意非空占位串，如 `placeholder`（网关用 PKCE 鉴权，**不校验 secret**；Quick 表单强制要才填） |
 | Scope | `openid` |
-| MCP Server Endpoint | `https://<域名>/mcp` |
 
-保存后 Quick 会：①（如支持 DCR）自动调 `/register` 注册 → ②弹出登录按钮 → ③你用**自己的钉钉账号**授权 → ④Quick 自动拿到 token 并连上，显示 **38 个工具**。**全程不用手动复制任何 token**，过期了 Quick 自己用 refresh_token 续。
+> ⚠️ **三栏域名逐字一致**：MCP endpoint / Authorization URL / Token URL 的域名必须完全相同。实测踩坑：把 `d512ohnwy06c3` 的 `y` 手打成 `v`，授权页直接"意外终止连接"。**强烈建议复制粘贴**。
 
-> per-user 隔离要点：务必让 Quick 为**每个成员单独发起 OAuth**（Default OAuth app / DCR 模式），这样每人以自己钉钉身份授权、数据各自隔离；切勿用「管理员授权一次全员复用」的共享凭据模式（会导致所有人共用管理员身份）。
+**为什么 Client ID 是固定的 `quick` 而不是留空走 DCR**：实测 Quick 的 User authentication 表单**强制要求 Client ID/Secret，且不会自动调 `/register` 做动态客户端注册（DCR）**——它直接拿你填的 Client ID 去打 `/authorize`。因此网关侧必须**预注册一个固定客户端**，本部署预注册的 ID 就是 `quick`（管理员准备见文末附录）。填错或留空会报 `{"error":"invalid_client","error_description":"unknown client_id"}`。
+
+保存后 Quick 会：①弹出登录按钮 → ②你用**自己的钉钉账号**授权 → ③Quick 自动拿到 token 并连上，显示 **38 个工具**。**全程不用手动复制任何 token**，过期了 Quick 自己用 refresh_token 续。
+
+> per-user 隔离要点：每个成员各自在自己的 Quick 里走这套 OAuth、用各自的钉钉账号授权，token 按 `userId` 隔离存放；切勿用「管理员授权一次全员复用」的共享凭据模式（会导致所有人共用管理员身份）。
 
 ### 方式 B：手动复制 Bearer（fallback）
 
@@ -198,3 +205,20 @@ Quick 支持同时挂多个 MCP server：
 2. （仅当员工要用某些组织级接口时）在钉钉开放平台给应用补充对应 scope 权限。
 
 无需在 AWS 侧为每个员工建任何资源——员工首次授权时 `token-refresh-shim` 会自动为其创建 Secrets Manager 记录。
+
+---
+
+## 附录：为方式 A 预注册 `quick` 客户端（每套环境一次性）
+
+因为 Quick 的 User authentication 不跑 DCR、直接用填入的 Client ID 打 `/authorize`，网关侧需预注册一个固定客户端，成员才能填 `quick` 连上。**部署一套新环境、或重建了 `OAuthStateTable` 后必须做一次**，否则成员填 `quick` 报 `unknown client_id`。
+
+往 `OAuthStateTable` 写一条主键为 `client#quick` 的记录，至少包含：
+
+- `redirectUris`：Quick 的回调地址数组，形如 `https://<region>.quicksight.aws.amazon.com/sn/oauthcallback`（以成员实际跳转/报错里出现的回调为准）。
+- `authMethod`：`client_secret_basic`。
+- `clientName`：任意标识，如 `Amazon Quick (pre-registered)`。
+- `ttl`：一个远期 epoch 秒（避免被 TTL 清掉）。
+
+> 验证：构造 `GET /authorize?client_id=quick&redirect_uri=<上面的回调>&response_type=code&code_challenge=<任意S256>&code_challenge_method=S256&scope=openid` 应返回 **302 跳 `login.dingtalk.com`**（而非 400 `invalid_client`），即预注册生效。
+
+**运维 backlog**：目前这步是手工写 DynamoDB，建议纳入 `deploy.sh` 部署后自动 upsert 一条 `client#quick`，避免重建表后遗漏。`OAuthStateTable` 现为 `RETAIN + PITR`，常规更新栈不会丢这条记录，但重建表会。
