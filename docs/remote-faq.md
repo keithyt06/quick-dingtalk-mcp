@@ -48,15 +48,11 @@ A：
 
 如果整个 HMAC 主密钥泄露（攻击者能伪造任意 mcpToken）：覆写 SSM `/qdm-remote/QdmRemoteOAuth/hmac-key` 为新随机值——所有老 token **立即**失效（无 grace 期），全员重新授权一次。详见 [remote-security.md](./remote-security.md#mcp-hmac-token--incrauthtoken-域分离)。
 
-### Q6：Region 为什么锁 us-east-1？
+### Q6：部署在哪个 region？可以换吗？
 
-A：
+A：默认 us-east-1，**可以换**——`AWS_REGION=<region> bash deploy.sh` 即可，前提是该 region 已上线 Bedrock AgentCore（已确认可用：us-east-1 / us-west-2 / ap-southeast-1 / eu-central-1 / ap-northeast-1 / eu-west-1）。唯一例外是可选的 WAF 栈：CloudFront-scope WebACL 是 AWS 硬约束，恒在 us-east-1。详见 [remote-deploy.md](./remote-deploy.md#选择部署-region)。
 
-1. AgentCore Runtime 当前仅在 us-east-1 GA。
-2. CloudFront WAF（CLOUDFRONT scope）必须在 us-east-1。
-3. 同 region 部署延迟最低、跨 region IAM/SM/SSM 拉数据会增加延迟和成本。
-
-中国大陆用户访问 us-east-1 经过 CloudFront 边缘节点（含中国香港节点），实测端到端 200-400ms 可接受。待 AgentCore 推广到其他 region 再考虑多 region 部署。
+中国大陆用户访问 us-east-1 经过 CloudFront 边缘节点（含中国香港节点），端到端延迟通常在 200-400ms，日常使用可接受；也可以选 ap-southeast-1 / ap-northeast-1 等更近的 region 部署。
 
 ### Q7：可以自部署到自己的 AWS 账号吗？
 
@@ -75,16 +71,9 @@ bash packages/remote/scripts/deploy.sh
 
 最低 IAM 权限：CDK bootstrap 已建的 `cdk-hnb659fds-*` role 之上，加 `bedrock-agentcore:*`、`secretsmanager:*`、`cloudfront:*`、`wafv2:*`、`ecr:*`。
 
-### Q8：可以多 region 部署吗？
+### Q8：可以多 region 同时部署吗（异地容灾）？
 
-A：v0.2 不支持原生多 region。如果一定要做，思路：
-
-1. 主 region us-east-1 跑全量
-2. 次 region 跑只读 read replica（DDB Global Tables、SM 的 cross-region replication）
-3. CloudFront 用 origin failover 切到次 region 的 API GW
-4. 但 AgentCore Runtime 不支持跨 region 复制，次 region 的 Runtime 必须等 AgentCore 在该 region GA
-
-成本翻倍、复杂度翻 3 倍，不建议除非真有 region 级 SLA 需求。
+A：单 region 部署可任选 region（见 Q6），但**不支持一套数据跨多 region 热备**。如果真有 region 级 SLA 需求，思路：主 region 跑全量；次 region 用 DDB Global Tables + SM cross-region replication 做只读副本；CloudFront origin failover 切流。成本翻倍、复杂度翻 3 倍，绝大多数团队不需要。
 
 ## 成本
 
@@ -150,7 +139,7 @@ A：两种语义不同的「删」：
 ```bash
 aws secretsmanager delete-secret \
   --secret-id quick-dingtalk-mcp/users/<userId> \
-  --force-delete-without-recovery --region us-east-1
+  --force-delete-without-recovery --region <部署region>
 ```
 
 该用户在 DDB `OAuthStateTable` 里的 `refresh#` 记录（方式 A 的 refresh token）会在续期时因 `needs_reauth`/secret 缺失被拒绝并删除，也会随 90 天 TTL 自然过期，无需手动清。

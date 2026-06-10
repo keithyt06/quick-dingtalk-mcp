@@ -55,8 +55,8 @@ npm workspaces (`packages/*`), `"type": "module"`, Node ≥ 20 (remote needs ≥
   `alarm-presets.json`, `alarm-thresholds.json` (standard/relaxed/strict), `i18n.json`
   (zh/en strings), `oauth-scopes.json`.
 - **`docs/`** — remote deploy/operations/security/observability/cost/FAQ (index in
-  `docs/README.md`), plus `docs/superpowers/notes/` (still-relevant field-test records,
-  e.g. the OAuth field audit and the code-review backlog).
+  `docs/README.md`). Public-facing: keep it free of internal dev history, real
+  domains/account IDs, and date-stamped changelog prose.
 
 ## Commands
 

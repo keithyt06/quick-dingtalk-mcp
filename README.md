@@ -213,6 +213,16 @@ Full index (by audience): **[docs/README.md](./docs/README.md)**
 - **Local**: [setup](./packages/local/docs/setup.md) · [identity verification](./packages/local/docs/verification.md)
 - **Remote**: [AWS deployment guide (中文)](./docs/remote-deploy.md) · [first-time setup · OAuth wizard, recommended (中文)](./docs/remote-新人首配-oauth.md) · [connect help · manual (中文)](./docs/remote-连接帮助.md) · [Quick Desktop onboarding](./docs/remote-quick-desktop.md) · [security](./docs/remote-security.md) · [operations](./docs/remote-operations.md) · [observability](./docs/remote-observability.md) · [FAQ](./docs/remote-faq.md) · [cost](./docs/remote-cost.md)
 
+## Contributing
+
+Issues and pull requests are welcome — bug reports, new region availability notes, doc fixes, and tool-catalog improvements are all fair game. Before sending a PR:
+
+```bash
+npm run test:all     # 125 tests must stay green (Node ≥ 22.6)
+```
+
+A few house rules: `packages/shared/catalog.json` is generated (`npm run build:catalog`), never hand-edited; changes in `packages/shared/` affect both Local and Remote, so run the full suite; never commit real AppKeys, tokens, account IDs, or live domains.
+
 ## Acknowledgments
 
 - [`dws` — DingTalk-Real-AI/dingtalk-workspace-cli](https://github.com/DingTalk-Real-AI/dingtalk-workspace-cli) — does the heavy lifting; this project is a thin shim over it.

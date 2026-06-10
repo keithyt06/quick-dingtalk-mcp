@@ -31,4 +31,3 @@
 | `assets/token-lifecycle.svg` | 三层 token 生命周期 | remote-quick-desktop |
 | `assets/request-chain-errors.svg` | 请求链路与各错误码出处 | remote-quick-desktop |
 
-> `superpowers/notes/` 是仍有参考价值的实测记录（OAuth 字段核对、code review backlog），不保证与现状一致。

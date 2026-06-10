@@ -1,7 +1,6 @@
 # Remote 端 Quick Desktop 接入指南（多用户）
 
-> v0.2 Remote 多用户 HTTPS MCP 接入 Quick Desktop（钉钉）的完整流程。
-> 方式 B（手动复制 Bearer）基于 2026-06-01 的真实部署 + 端到端联调实测；方式 A（标准 OAuth 向导）于 2026-06-10 在真实 Quick 实测通过。
+> Remote 多用户 HTTPS MCP 接入 Quick Desktop（钉钉）的完整流程。两种接入方式均在真实环境端到端验证过。
 >
 > 📘 **只是想连上用、不关心技术细节？** 看面向新人的 [连接帮助](./remote-连接帮助.md)（含「连接失效怎么重连」）。本文是技术版，含传输协议、故障排查矩阵、Local/Remote 并存等。
 
@@ -39,7 +38,7 @@ Remote 的设计目标是**一次部署支持任意多个员工**，新员工接
 
 > 上表「13 个月硬上限」是 HMAC 派生 token 的理论寿命上限，**用户无感**：只要 90 天内用过，后端会在到期前持续续期覆盖。对终端用户的统一口径就是「在用就长期有效，连续 90 天没用才需重连」——README 与新人文档按这个口径表述，本技术版额外把底层上限写出来仅供运维参考。
 
-### 方式 A：标准 OAuth 向导（推荐，2026-06-10 在真实 Quick 实测通过）
+### 方式 A：标准 OAuth 向导（推荐）
 
 > ⚠️ **入口**：从 Quick 的 **Connectors（连接器）→ Add connector → MCP** 进，认证方式选 **User authentication**。**别从 Settings → MCP 进**——那条路被当成无认证，401 后不会发起 OAuth discovery（日志只见 `/mcp`、不见 `/authorize`）。
 
@@ -55,9 +54,9 @@ Remote 的设计目标是**一次部署支持任意多个员工**，新员工接
 | Client Secret | 任意非空占位串，如 `placeholder`（网关用 PKCE 鉴权，**不校验 secret**；Quick 表单强制要才填） |
 | Scope | `openid` |
 
-> ⚠️ **三栏域名逐字一致**：MCP endpoint / Authorization URL / Token URL 的域名必须完全相同。实测踩坑：把 `d512ohnwy06c3` 的 `y` 手打成 `v`，授权页直接"意外终止连接"。**强烈建议复制粘贴**。
+> ⚠️ **三栏域名逐字一致**：MCP endpoint / Authorization URL / Token URL 的域名必须完全相同。CloudFront 域名是随机字符串，手打极易错一个字母——错一个授权页就直接打不开（浏览器报"意外终止连接"）。**务必复制粘贴**。
 
-**为什么 Client ID 是固定的 `quick` 而不是留空走 DCR**：实测 Quick 的 User authentication 表单**强制要求 Client ID/Secret，且不会自动调 `/register` 做动态客户端注册（DCR）**——它直接拿你填的 Client ID 去打 `/authorize`。因此网关侧必须**预注册一个固定客户端**，本部署预注册的 ID 就是 `quick`（管理员准备见文末附录）。填错或留空会报 `{"error":"invalid_client","error_description":"unknown client_id"}`。
+**为什么 Client ID 是固定的 `quick` 而不是留空走 DCR**：Quick 的 User authentication 表单**强制要求 Client ID/Secret，且不会自动调 `/register` 做动态客户端注册（DCR）**——它直接拿你填的 Client ID 去打 `/authorize`。因此网关侧必须**预注册一个固定客户端**，本部署预注册的 ID 就是 `quick`（管理员准备见文末附录）。填错或留空会报 `{"error":"invalid_client","error_description":"unknown client_id"}`。
 
 保存后 Quick 会：①弹出登录按钮 → ②你用**自己的钉钉账号**授权 → ③Quick 自动拿到 token 并连上，显示 **38 个工具**。**全程不用手动复制任何 token**，过期了 Quick 自己用 refresh_token 续。
 
@@ -86,7 +85,7 @@ host 不支持 OAuth 向导时，走下面「员工接入：3 步」的手动流
 
 > 这是 **fallback 路径**。host 支持 OAuth 向导时优先用上面的「方式 A」，可免去手动复制 + 自动续期。
 
-假设管理员给你的 CloudFront 域名是 `https://d512ohnwy06c3.cloudfront.net`（换成你们实际的）。
+假设管理员给你的 CloudFront 域名是 `https://d1234abcd56ef.cloudfront.net`（换成你们实际的）。
 
 ### 第 1 步：浏览器授权，拿到你自己的 token
 

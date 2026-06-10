@@ -130,4 +130,4 @@ bash packages/remote/scripts/teardown.sh
 
 按 WAF → Runtime → OAuth 的顺序 destroy 三个栈(AgentCore Runtime 本体随 `QdmRemoteRuntime` 栈一起删除)。**栈外资源需手动清理**:用户 token secrets(默认 30 天恢复期,`delete-secret --force-delete-without-recovery` 立即删)、SSM 两个密钥参数、CDK bootstrap ECR 里的镜像(**不要删整个 repo**,它被账号内其他 CDK 应用共享)。OAuthStateTable 是 `RETAIN`,destroy 后表保留,确认不要后手动删。
 
-> **从旧版(boto3 建 Runtime)迁移**:2026-06-10 前部署的环境,AgentCore Runtime 是 deploy.sh 用 boto3 建的、不归 CFN 管。升级到 CFN 管理需一次性迁移:先 `aws bedrock-agentcore-control delete-agent-runtime --agent-runtime-id <旧id>` 删旧 Runtime,再依次 `cdk deploy QdmRemoteRuntime`(CFN 重建同名 Runtime + 写 SSM 参数)、`cdk deploy QdmRemoteOAuth`(middleware 切换到 SSM 参数寻址)。期间 `/mcp` 中断约 5 分钟;用户 token/授权完全不受影响。
+> **从旧版(boto3 建 Runtime)迁移**:早期版本的 deploy.sh 用 boto3 创建 AgentCore Runtime、不归 CFN 管;若你的环境是那时部署的,升级前需一次性迁移。做法:先 `aws bedrock-agentcore-control delete-agent-runtime --agent-runtime-id <旧id>` 删旧 Runtime,再依次 `cdk deploy QdmRemoteRuntime`(CFN 重建同名 Runtime + 写 SSM 参数)、`cdk deploy QdmRemoteOAuth`(middleware 切换到 SSM 参数寻址)。期间 `/mcp` 中断约 5 分钟;用户 token/授权完全不受影响。

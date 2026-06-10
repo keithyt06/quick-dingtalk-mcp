@@ -213,6 +213,16 @@ curl -fsSL https://raw.githubusercontent.com/keithyt06/quick-dingtalk-mcp/main/p
 - **Local**：[安装配置](./packages/local/docs/setup.md) · [身份验证](./packages/local/docs/verification.md)
 - **Remote**：[AWS 部署指南](./docs/remote-deploy.md) · [新人首配·OAuth 向导（推荐）](./docs/remote-新人首配-oauth.md) · [连接帮助（手动版）](./docs/remote-连接帮助.md) · [Quick Desktop 接入（技术版）](./docs/remote-quick-desktop.md) · [安全模型](./docs/remote-security.md) · [运维](./docs/remote-operations.md) · [可观测性](./docs/remote-observability.md) · [FAQ](./docs/remote-faq.md) · [成本](./docs/remote-cost.md)
 
+## 参与贡献
+
+欢迎提 Issue 和 Pull Request——bug 报告、新 region 可用性反馈、文档修正、工具目录改进都欢迎。提 PR 前请：
+
+```bash
+npm run test:all     # 125 个测试须保持全绿（需 Node ≥ 22.6）
+```
+
+几条约定：`packages/shared/catalog.json` 是生成物（`npm run build:catalog`），不要手改；`packages/shared/` 的改动同时影响 Local 和 Remote，请跑全量测试；任何真实 AppKey、token、账号 ID、线上域名都不要进仓库。
+
 ## 致谢
 
 - [`dws` — DingTalk-Real-AI/dingtalk-workspace-cli](https://github.com/DingTalk-Real-AI/dingtalk-workspace-cli) —— 干了所有脏活，本项目只是它之上的薄适配层。

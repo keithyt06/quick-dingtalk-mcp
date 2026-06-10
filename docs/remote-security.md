@@ -1,6 +1,6 @@
 # Remote 端安全模型
 
-> 面向**安全评审者与管理员**。v0.2 Remote 多用户 HTTPS MCP 的信任边界、密钥层级、威胁模型与已知薄弱项。
+> 面向**安全评审者与管理员**。Remote 多用户 HTTPS MCP 的信任边界、密钥层级、威胁模型与已知薄弱项。
 
 ## 信任边界图
 
@@ -107,7 +107,7 @@ consumeState(state)  // 原子 DeleteItem(ReturnValues=ALL_OLD)：读取即销�
 
 - **state / code 一次性**：用后即删，重放即 400；TTL 在代码内强制校验（DDB TTL 删除可能滞后数小时）
 - **refresh token 轮换**：泄露的旧 refresh token 在合法客户端续期一次后即失效
-- **PKCE 双层**：外层校验 Quick 的 code_verifier；内层向钉钉发 code_challenge（钉钉侧是否强制校验待实测确认）
+- **PKCE 双层**：外层校验 Quick 的 code_verifier；内层向钉钉发 code_challenge（钉钉侧是否强制校验该参数尚未确认）
 - **`?t=`（增量授权）与 OAuth 参数互斥**：防止用 incr token 绕过钉钉同意页为任意 client 铸 code
 - **DCR 限速**：`POST /register` 1 rps / burst 10，防匿名灌表
 
@@ -145,7 +145,7 @@ npx cdk deploy QdmRemoteWaf -c enableWaf=true
 
 `docker/server.js` 是单容器多用户。隔离手段：
 
-1. **DWS_CONFIG_DIR**：每个用户独立 `/var/dws/users/<uid>`，dws 的 token、缓存都写各自目录（注入策略 `INJECT_STRATEGY=d2`，即 `dws auth login --token`，已实测）。
+1. **DWS_CONFIG_DIR**：每个用户独立 `/var/dws/users/<uid>`，dws 的 token、缓存都写各自目录（注入策略 `INJECT_STRATEGY=d2`，即 `dws auth login --token`）。
 2. **execFile 不 spawn shell**：args 数组传参，避免命令注入。
 3. **semaphore**：`MAX_CONCURRENT`（默认 10）限制同时跑的 dws 进程数，超出排队等待。
 4. **USER node 非 root**：Dockerfile 末尾 `USER node`，`/var/dws` 已 `chown node:node`。
@@ -181,7 +181,7 @@ npx cdk deploy QdmRemoteWaf -c enableWaf=true
 
 ## 与 lark-mcp-on-agentcore 的差异
 
-| 维度 | lark-mcp-on-agentcore | quick-dingtalk-mcp v0.2 |
+| 维度 | lark-mcp-on-agentcore | quick-dingtalk-mcp |
 |---|---|---|
 | token 存储 | 容器内 SM 自取 | Lambda 取后经头注入，容器运行时不读 SM |
 | 域分离 | 单 HMAC 单用途 | 一把主密钥、`mcp`/`incr` 双域签名分离 |

@@ -1,29 +1,11 @@
 # SETUP — 从零到能用的完整配置指南
 
-## v0.1 → v0.2 迁移（v0.1 用户必读）
-
-v0.2 把项目改成 monorepo，`server.mjs` 从仓库根挪到 `packages/local/server.mjs`。MCP host 配置里的 `args` 路径必须更新：
-
-| | 老 | 新 |
-|---|---|---|
-| Args | `/path/to/quick-dingtalk-mcp/packages/local/server.mjs` | `/path/to/quick-dingtalk-mcp/packages/local/server.mjs` |
-
-或者直接用 npx（无需 clone）：
-
-```json
-{ "command": "npx", "args": ["-y", "quick-dingtalk-mcp"] }
-```
-
-旧 6 个工具名（`dingtalk_send_message` 等）作为 alias 保留至 v0.3，工具描述会标 `[deprecated, use ...]`。新 prompt 请直接用 `dingtalk_chat_message_send` 等 catalog 名。
-
----
-
 本文档手把手带你把 `quick-dingtalk-mcp` 装好、登录钉钉、接到 MCP Host（Amazon Quick Desktop / Claude Desktop / Cursor），最终能用自然语言操作钉钉消息。
 
 预计耗时：**约 15 分钟**（含等管理员审批 CLI 访问的可选步骤）。
 
-> 项目本身是什么 → 见 [README.md](./README.md)
-> 用户态发送是否真的"以本人身份"显示 → 见 [VERIFICATION.md](./VERIFICATION.md)
+> 项目本身是什么 → 见 [README](../../../README_CN.md)
+> 用户态发送是否真的"以本人身份"显示 → 见 [verification.md](./verification.md)
 
 ---
 
@@ -144,15 +126,15 @@ dws auth status -f json
 npm run smoke
 ```
 
-期望输出：7 段 dry-run 结果（覆盖 v0.1 的 6 个语义 + 1 个 single-chat 变体），每段打印一段 JSON 含 `"canonical_path"` 字段。只要每段 canonical_path 都能正常显示（即使 chat search 返回空结果或 not_authenticated 都没关系），就说明 wrapper 构造的 dws 命令是正确的。
+期望输出：7 段 dry-run 结果（覆盖 6 个常用语义 + 1 个 single-chat 变体），每段打印一段 JSON 含 `"canonical_path"` 字段。只要每段 canonical_path 都能正常显示（即使 chat search 返回空结果或 not_authenticated 都没关系），就说明 wrapper 构造的 dws 命令是正确的。
 
-> v0.2 实际暴露 **38 个工具**（30 tier1 + 6 v0.1 alias + `dingtalk_discover` / `dingtalk_invoke`），smoke 只针对 v0.1 alias 做最小冒烟。完整列表见 `tools/list` 输出或 README。
+> 项目实际暴露 **38 个工具**（30 个具名工具 + 6 个兼容 alias + `dingtalk_discover` / `dingtalk_invoke`），smoke 只针对 alias 做最小冒烟。完整列表见 `tools/list` 输出或 README。
 
 ---
 
 ## Step 5：用户态验证（**关键，必做一次**）
 
-> 决定整个方案是否成立的一步。详情见 [VERIFICATION.md](./VERIFICATION.md)。
+> 决定整个方案是否成立的一步。详情见 [verification.md](./verification.md)。
 
 精简版三条命令：
 
@@ -392,8 +374,8 @@ rm -rf ~/Downloads/quick-dingtalk-mcp
 
 ## 参考
 
-- [README.md](./README.md) — 项目概览、架构、工具列表
-- [VERIFICATION.md](./VERIFICATION.md) — 5 分钟用户态验证
+- [README](../../../README_CN.md) — 项目概览、架构、工具列表
+- [verification.md](./verification.md) — 5 分钟用户态验证
 - [dws GitHub](https://github.com/DingTalk-Real-AI/dingtalk-workspace-cli) — 钉钉官方 CLI
 - [钉钉开放平台](https://open.dingtalk.com)
 - [MCP 协议](https://modelcontextprotocol.io)
