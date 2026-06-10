@@ -151,7 +151,6 @@ The gateway is a standard **OAuth 2.1 Authorization Server**, so your client can
 | Use when | your client has an OAuth login (Amazon Quick does) | your client only lets you set a fixed header |
 | What you do | fill a few URLs, click **Approve** once | open a URL, copy a `Bearer` token into a header |
 | Token upkeep | client **auto-refreshes** — you never touch a token | paste once; stays valid while in use (re-auth after 90 days idle) |
-| Verified | ✅ Amazon Quick, 2026-06-10 | ✅ 2026-06-01 |
 
 #### Mode A — OAuth wizard (recommended)
 

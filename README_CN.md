@@ -151,7 +151,6 @@ curl -fsSL https://raw.githubusercontent.com/keithyt06/quick-dingtalk-mcp/main/p
 | 何时用 | 客户端有 OAuth 登录（Amazon Quick 有） | 客户端只能填固定请求头 |
 | 你要做什么 | 填几个 URL，点一次**同意** | 打开一个网址，把 `Bearer` 复制进请求头 |
 | token 维护 | 客户端**自动续期**——再也不用碰 token | 复制一次；在用就有效（连续 90 天不用才需重授权） |
-| 实测 | ✅ Amazon Quick，2026-06-10 | ✅ 2026-06-01 |
 
 #### 模式 A —— OAuth 向导（推荐）
 
